@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+*.log
+.env
+.env.local
+
+# Build artifacts
+dist/
+build/
+out/
