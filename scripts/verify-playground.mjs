@@ -1,16 +1,19 @@
 // Headless sanity check for the inlined playground bundle.
-// Extracts the contract + bundle from the rendered HTML and executes the bundle
-// in Node, confirming `window.airlock.evaluate(...)` produces the right verdicts.
+// Extracts the contract + bundle from a published per-contract page and
+// executes the bundle in Node, confirming window.airlock.evaluate(...) matches
+// the Node sandbox.
 import { readFileSync } from "node:fs";
 
-const html = readFileSync("dist-pages/.well-known/airlock/index.html", "utf-8");
+// Site layout (v0.4) puts each example under examples/<agent-name>/
+const PAGE = "dist-pages/examples/acme-supplier-agent/.well-known/airlock/index.html";
+
+const html = readFileSync(PAGE, "utf-8");
 
 const contractMatch = html.match(
   /<script>window\.__AIRLOCK_CONTRACT__ = (.+?);<\/script>/,
 );
-if (!contractMatch) throw new Error("contract block not found");
+if (!contractMatch) throw new Error(`contract block not found in ${PAGE}`);
 
-// Bundle: the next <script>...</script> immediately after the contract block
 const after = html.slice(contractMatch.index + contractMatch[0].length);
 const bundleMatch = after.match(/<script>([\s\S]+?)<\/script>/);
 if (!bundleMatch) throw new Error("playground bundle <script> not found");
@@ -18,35 +21,34 @@ if (!bundleMatch) throw new Error("playground bundle <script> not found");
 globalThis.window = globalThis;
 globalThis.__AIRLOCK_CONTRACT__ = JSON.parse(contractMatch[1]);
 
-// Execute the IIFE
 new Function(bundleMatch[1])();
 
 if (!globalThis.airlock) throw new Error("window.airlock was not set by the bundle");
 
 const scenarios = [
   {
-    name: "analyze_code: workspace-relative path (PROMISE)",
-    skill: "analyze_code",
-    input: { path: "src/expr/index.ts" },
+    name: "confirm_po: small date change (PROMISE)",
+    skill: "confirm_po",
+    input: { reference: "PO-1234", entity: "known-supplier-1", amount: 100, delivery_date_change_days: -2 },
     expect: { code: "ACCEPTED_BY_RULE", binding: "PROMISE" },
   },
   {
-    name: "analyze_code: absolute path (PROMISE, else branch)",
-    skill: "analyze_code",
-    input: { path: "/etc/passwd" },
+    name: "confirm_po: large date change (ESTIMATE)",
+    skill: "confirm_po",
+    input: { reference: "PO-9", entity: "known-supplier-1", amount: 100, delivery_date_change_days: 14 },
+    expect: { code: "HUMAN_REVIEW_LIKELY", binding: "ESTIMATE" },
+  },
+  {
+    name: "confirm_po: unknown entity (PROMISE instant_failure)",
+    skill: "confirm_po",
+    input: { reference: "PO-1", entity: "random-vendor", amount: 10 },
     expect: { code: "OUT_OF_SCOPE", binding: "PROMISE" },
   },
   {
-    name: "analyze_code: missing path (PROMISE instant_failure)",
-    skill: "analyze_code",
-    input: {},
-    expect: { code: "MISSING_INPUT", binding: "PROMISE" },
-  },
-  {
-    name: "run_command: judgment fallback (ESTIMATE)",
-    skill: "run_command",
-    input: { command: "echo hi" },
-    expect: { code: "DEPENDS_ON_STATE", binding: "ESTIMATE" },
+    name: "query_inventory: no rule fires → default ESTIMATE",
+    skill: "query_inventory",
+    input: { sku: "SKU-42" },
+    expect: { code: "ACCEPTED_LIKELY", binding: "ESTIMATE" },
   },
 ];
 
@@ -62,8 +64,8 @@ for (const s of scenarios) {
 }
 
 // Faker determinism check: same input, twice, same body.
-const a = globalThis.airlock.evaluate("run_command", { command: "echo hi" }, "skills");
-const b = globalThis.airlock.evaluate("run_command", { command: "echo hi" }, "skills");
+const a = globalThis.airlock.evaluate("query_inventory", { sku: "SKU-42" }, "skills");
+const b = globalThis.airlock.evaluate("query_inventory", { sku: "SKU-42" }, "skills");
 const detA = JSON.stringify((a.verdict ?? a).detail);
 const detB = JSON.stringify((b.verdict ?? b).detail);
 const detOk = detA === detB && detA !== undefined;

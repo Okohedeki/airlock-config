@@ -4,18 +4,12 @@
  *   - pre-flight (returns Verdict only)
  *   - the conformance runner (compares Verdict to the real agent's response)
  *
- * Skill-call pipeline:
+ * Pipeline:
  *   1. Locate skill (WRONG_AGENT if missing)
  *   2. Validate input against skill's input schema (SCHEMA_INVALID / MISSING_INPUT)
  *   3. Evaluate instant_failures in declaration order (first match wins)
- *   4. Evaluate skill-targeted authority rules (first matching when fires)
+ *   4. Evaluate authority rules in declaration order (first matching when fires)
  *   5. If no rule fires: ACCEPTED_LIKELY / ESTIMATE
- *
- * Tool-call pipeline (v0.3):
- *   1. Locate tool (WRONG_AGENT if missing)
- *   2. (Future) Validate input against tool's input_schema
- *   3. Evaluate tool-targeted authority rules (first matching when fires)
- *   4. If no rule fires: ACCEPTED_LIKELY / ESTIMATE
  */
 
 import type {
@@ -25,12 +19,7 @@ import type {
 } from "../validate/types.js";
 import { parseExpression, evaluate as evalExpr, EvalError, ParseError } from "../expr/index.js";
 import type { Verdict } from "./verdict.js";
-import {
-  buildInputValidators,
-  findSkill,
-  findTool,
-  type InputValidator,
-} from "./inputValidator.js";
+import { buildInputValidators, findSkill, type InputValidator } from "./inputValidator.js";
 
 export type PreparedContract = {
   contract: AirlockContract;
@@ -49,11 +38,6 @@ export function prepareContract(contract: AirlockContract): PreparedContract {
 
 export type EvaluateInput = {
   skill: string;
-  input: unknown;
-};
-
-export type EvaluateToolInput = {
-  tool: string;
   input: unknown;
 };
 
@@ -79,7 +63,6 @@ export function evaluateRequest(prepared: PreparedContract, req: EvaluateInput):
       const message = result.errors
         .map((e) => `${e.path} ${e.message}`)
         .join("; ");
-      // Heuristic: missing required field → MISSING_INPUT, else SCHEMA_INVALID
       const isMissing = result.errors.some(
         (e) => /required/i.test(e.message) || /must have required/i.test(e.message),
       );
@@ -95,20 +78,20 @@ export function evaluateRequest(prepared: PreparedContract, req: EvaluateInput):
   // 3. instant_failures
   for (const failure of contract.instant_failures ?? []) {
     if (failure.skill && failure.skill !== skill.id) continue;
-    if (evalWhen(prepared, failure.when, { input: req.input }, `instant_failures:${failure.id}`)) {
+    if (evalWhen(prepared, failure.when, req.input, `instant_failures:${failure.id}`)) {
       return {
         code: failure.code,
         binding: "PROMISE",
-        reason: failure.message ?? `Instant failure: ${failure.id}`,
+        reason: failure.message ?? failure.summary ?? `Instant failure: ${failure.id}`,
         ref: failure.id,
       };
     }
   }
 
-  // 4. authority rules (skill-targeted only)
+  // 4. authority rules
   for (const rule of contract.authority ?? []) {
-    if (rule.skill !== skill.id) continue; // skips tool-targeted rules too
-    const fired = evalWhen(prepared, rule.when, { input: req.input }, `authority:${rule.id}`);
+    if (rule.skill !== skill.id) continue;
+    const fired = evalWhen(prepared, rule.when, req.input, `authority:${rule.id}`);
     if (fired) return outcomeToVerdict(rule, "then");
     if (rule.else) return outcomeToVerdict(rule, "else");
   }
@@ -122,44 +105,12 @@ export function evaluateRequest(prepared: PreparedContract, req: EvaluateInput):
   };
 }
 
-export function evaluateToolCall(prepared: PreparedContract, req: EvaluateToolInput): Verdict {
-  const { contract } = prepared;
-
-  const tool = findTool(contract, req.tool);
-  if (!tool) {
-    return {
-      code: "WRONG_AGENT",
-      binding: "PROMISE",
-      reason: `Tool "${req.tool}" is not declared in this contract.`,
-      ref: "no-such-tool",
-    };
-  }
-
-  // Tool-targeted authority rules. Expression bindings expose the tool args
-  // as both `input` and `tool` so authors can write whichever reads cleaner.
-  const bindings = { input: req.input, tool: req.input };
-
-  for (const rule of contract.authority ?? []) {
-    if (rule.tool !== tool.id) continue;
-    const fired = evalWhen(prepared, rule.when, bindings, `authority:${rule.id}`);
-    if (fired) return outcomeToVerdict(rule, "then");
-    if (rule.else) return outcomeToVerdict(rule, "else");
-  }
-
-  return {
-    code: "ACCEPTED_LIKELY",
-    binding: "ESTIMATE",
-    reason: "No authority rule fired against this tool; default estimate.",
-    ref: "default",
-  };
-}
-
 function outcomeToVerdict(rule: AuthorityRule, branch: "then" | "else"): Verdict {
   const outcome = branch === "then" ? rule.then : rule.else!;
   return {
     code: outcome.code,
     binding: rule.binding_class === "deterministic" ? "PROMISE" : "ESTIMATE",
-    reason: outcome.message ?? `Rule "${rule.id}" ${branch}-branch matched.`,
+    reason: outcome.message ?? rule.summary ?? `Rule "${rule.id}" ${branch}-branch matched.`,
     ref: rule.id,
     ...(outcome.action ? { action: outcome.action } : {}),
   };
@@ -168,7 +119,7 @@ function outcomeToVerdict(rule: AuthorityRule, branch: "then" | "else"): Verdict
 function evalWhen(
   prepared: PreparedContract,
   source: string,
-  bindings: Record<string, unknown>,
+  input: unknown,
   context: string,
 ): boolean {
   let ast = prepared.exprCache.get(source);
@@ -181,7 +132,7 @@ function evalWhen(
     prepared.exprCache.set(source, ast);
   }
   try {
-    const result = evalExpr(ast, bindings);
+    const result = evalExpr(ast, { input });
     return Boolean(result);
   } catch (err) {
     throw wrapEvalError(context, "eval", err);

@@ -62,41 +62,45 @@ _Avoid_: Permission, policy, ACL
 A condition the contract declares as rejected on sight, before any work is done. Always produces a PROMISE code (e.g., `OUT_OF_SCOPE`, `MISSING_INPUT`).
 _Avoid_: Early refusal, pre-check failure
 
-## Harness disclosure (v0.3)
+## B2B disclosure (v0.4)
 
-A contract describes both a *capability surface* (load-bearing promises a consumer programs against) and a *deployment* (informational facts about how the publisher implements the surface). The terms below split along that line. See ADR 0004 for the binding-vs-informational rule.
+A contract describes both a *capability surface* (load-bearing promises a consumer programs against) and *deployment posture* (informational facts about the publisher's setup). The terms below are the buyer-facing fields that drive registry indexing and integration decisions. See ADR 0004 for the binding-vs-informational rule and ADR 0006 for the v0.4 reframe.
 
-**Harness** (informational):
-The runtime envelope the publisher uses to implement the agent — framework (`claude-code`, `openai-agents`, custom), model, runtime, and limits (max_tokens, max_turns, timeout). Stated for consumer reasoning about blast radius; not a binding promise. The publisher may swap harnesses in a minor version as long as the binding surface is unchanged.
-_Avoid_: Engine, container, runtime stack
+**Category** (binding):
+The most important indexing surface. Required. Two closed-vocabulary fields — `industry` (e.g. `procurement`, `fintech`, `healthcare`) and `capability` (e.g. `transaction_processing`, `lookup`, `decision_support`) — plus an optional `subcategory` free-form refinement. A registry pre-filters every buyer query on these. Adding new values requires an ADR (see `docs/taxonomies.md`).
+_Avoid_: Type, kind, classification, tag (use `tags` for free-form indexing terms)
 
-**Tool** (binding):
-A discrete capability the harness invokes during its work — `read_file`, `bash`, `web_fetch`. Distinct from a **skill** (a high-level external interaction the publisher exposes to consumers): a skill is what the consumer calls; tools are what the agent reaches for to fulfill it. Each tool declares an `input_schema`, an `output_schema`, and a `side_effects` list. Authority rules may target tools the same way they target skills.
-_Avoid_: Function, action, capability (overloaded), built-in
+**Region** (binding):
+Geographic + regulatory posture. `data_residency` lists where the agent's own data lives; `serves_regions` lists where consumers may transact from. Both use the closed `RegionCode` vocabulary. Buyers in regulated industries gate integration on residency.
+_Avoid_: Jurisdiction, locale, geography (overloaded)
 
-**Hook** (binding):
-A declared lifecycle interception point — `before_skill`, `after_skill`, `pre_tool_use`, `post_tool_use`, `on_error`, `on_stop`. Each hook carries a `mode`: `observe` (read-only audit), `mutate` (may rewrite payload before continuing), or `block` (may halt the action). The mode is binding because a consumer's blast-radius reasoning changes entirely depending on whether a hook is silent or load-bearing.
-_Avoid_: Listener, callback, middleware
+**Compliance** (binding):
+Certifications and attestations the publisher claims, each with a `standard` (closed enum: SOC2_TYPE_2, ISO_27001, HIPAA, GDPR, PCI_DSS, etc.) and a `status` (`certified` / `self_attested` / `in_progress`). Optional `attestation_url` and `verified_at`. Buyers weight `certified` claims more than self-attested ones.
+_Avoid_: Audit, certification (alone — always paired with status)
 
-**Permission** (binding):
-A static allow- or disallow- entry on a typed resource the harness operates against. Structured as `{resource, op, scope}` with a documented short-form (`"fs.read:./src/**"`). The resource set is a closed v0.3 enum: `fs`, `network`, `tool`, `mcp`, `env`, `secret`. Unknown resources produce lint warnings. Permissions express blanket policy; conditional behavior belongs in an authority rule.
-_Avoid_: ACL (overloaded), role, scope (alone), capability
+**Auth model** (binding):
+How a consumer authenticates and how they get enrolled. `methods` is a closed-vocabulary list (api_key, oauth2_*, mtls, signed_jwt, webauthn). `enrollment` posture (`open` / `approval_required` / `invite_only` / `enterprise_only`) tells a buyer whether they can self-serve or must engage sales.
+_Avoid_: Auth (alone — too vague), authentication (verbose)
+
+**Pricing** (binding for `model` + `unit`; informational for `price_url`):
+`model` is a closed enum (`free`, `metered`, `subscription`, `enterprise`, `usage_tiered`) buyers pre-filter on. Hard numbers live behind `price_url` because they change too fast to live in the contract. `unit`, `currency`, and `free_tier` are optional.
+_Avoid_: Cost, billing (overloaded)
+
+**Permissions** (binding):
+*Data-access disclosure*, not a developer allowlist. `pii` exposure level, `data_classes` ingested (closed enum: pii, phi, payment_card, etc.), `retention` duration, and `third_party_sharing` posture. Answers the buyer's risk-management question: *what data does this agent see and what happens to it?*
+_Avoid_: ACL, ABAC, allowlist (those frame it as developer permission, not data disclosure)
 
 **Guardrail** (binding):
-A categorical refusal the publisher declares the agent will not cross — `refused_topics`, `refused_actions`, `required_authentication`. Coarser than authority rules; expresses commitments at the level of the entire agent, not a per-skill `when`-clause. A consumer reads guardrails before deciding whether to integrate at all.
+A categorical refusal the publisher declares the agent will not cross — `refused_topics`, `refused_actions`, `required_authentication`. Coarser than authority rules; expresses commitments at the level of the entire agent. Free-form strings, but the lint warns on values outside the recommended vocabulary in `docs/taxonomies.md` (shared terms make cross-publisher search work).
 _Avoid_: Filter, policy (overloaded), safety check
 
-**MCP server** (informational):
-A Model Context Protocol server the harness loads to source tools from. Declares `name`, `endpoint`, `auth_posture`, and `allowed_tools[]` (the subset of the server's tools the harness will actually expose). Each tool sourced from MCP carries a `source: {kind: "mcp", server: "<name>"}` discriminator so the provenance and trust boundary are visible. Informational per ADR 0004 — swapping MCP servers does not require a major bump as long as the tools surface is preserved.
-_Avoid_: Tool server, plugin, integration
+**Rule summary + keywords** (binding when present):
+An optional `summary` (one-liner in business terms) and `keywords` (free-form indexing terms) on every authority rule and instant_failure. Without them, a registry can only search the contract's metadata; with them, a foreign agent can search for the *substance* of rules ("agents that auto-accept POs under a threshold"). The lint warns when a rule has no summary.
+_Avoid_: Title, label, name (overloaded)
 
-**Secret declaration** (informational):
-A named env-var or credential the harness reads. The contract carries the *name* and *purpose* of each secret; never a value. Lets consumers reason about blast radius ("this agent reads `GITHUB_TOKEN`, so a successful prompt injection could exfiltrate repo metadata"). Informational; consumer integrations don't bind against secret names.
-_Avoid_: Credential, env (alone), token
-
-**Delegation** (informational):
-A pointer to another Airlock contract URL this agent may dispatch sub-work to (Claude-Code-style Task tool, multi-agent orchestration). Declared as `delegates_to: [<url>, ...]`. A transitive trust surface — a consumer who accepts this agent's promises is implicitly accepting the delegates' promises too. Informational because the publisher may add or remove delegates without changing what this agent itself does; the consumer is expected to fetch the linked contracts and reason about the trust chain.
-_Avoid_: Sub-agent, child, dependency (overloaded)
+**Tags** (binding, open vocabulary):
+Free-form keywords on the contract itself. Indexed alongside the closed `category` block. Used for finer-grained discovery (a sub-region, an industry niche, a positioning term).
+_Avoid_: Labels, hashtags
 
 ## Discovery and packaging
 

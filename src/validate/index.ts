@@ -53,14 +53,14 @@ function checkAirlockVersion(input: unknown): ValidationIssue | null {
   if (typeof input !== "object" || input === null) return null;
   const v = (input as { airlock?: unknown }).airlock;
   if (typeof v !== "string") return null;
-  if (/^0\.3(\.\d+)?$/.test(v)) return null;
-  if (/^0\.[12](\.\d+)?$/.test(v)) {
+  if (/^0\.4(\.\d+)?$/.test(v)) return null;
+  if (/^0\.[123](\.\d+)?$/.test(v)) {
     return {
       kind: "structural",
       path: "/airlock",
       message:
-        `contract declares airlock="${v}", but v0.3 is the current major. ` +
-        `See docs/migration-v01-to-v03.md for the field-by-field migration.`,
+        `contract declares airlock="${v}", but v0.4 is the current major. ` +
+        `See docs/migration-v03-to-v04.md for the field-by-field migration.`,
       keyword: "version",
     };
   }

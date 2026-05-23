@@ -1,0 +1,242 @@
+airlock: "0.4"
+
+agent:
+  name: acme-supplier-agent
+  version: 1.0.0
+  description: |
+    Confirms purchase orders, accepts cancellations, and answers stock-on-hand
+    queries on behalf of Acme Supplies Inc. Published as an Airlock contract
+    so enterprise customers' procurement agents can discover and integrate
+    without an onboarding call.
+  channels: [http]
+  homepage: https://example.com/agents/acme-supplier
+  contact:
+    name: Acme Supplies Partner Operations
+    url: https://example.com/agents/acme-supplier/support
+    email: partner-ops@example.com
+
+category:
+  industry: procurement
+  capability: transaction_processing
+  subcategory: po-confirmation-and-fulfillment
+
+region:
+  data_residency: [us-east, eu-west]
+  serves_regions: [us-east, us-west, ca, eu-west, eu-central, uk]
+
+compliance:
+  - standard: SOC2_TYPE_2
+    status: certified
+    attestation_url: https://example.com/trust/soc2-2026.pdf
+    verified_at: "2026-02-14"
+  - standard: ISO_27001
+    status: certified
+    verified_at: "2025-11-30"
+  - standard: GDPR
+    status: self_attested
+
+auth_model:
+  methods: [oauth2_client_credentials, mtls]
+  enrollment: enterprise_only
+  support_url: https://example.com/agents/acme-supplier/enrol
+
+pricing:
+  model: enterprise
+  price_url: https://example.com/agents/acme-supplier/pricing
+
+permissions:
+  pii: minimal
+  data_classes: [business_confidential, financial]
+  retention: 7y
+  third_party_sharing: subprocessors_only
+
+guardrails:
+  refused_topics:
+    - financial_advice
+    - investment_recommendation
+  refused_actions:
+    - transfer_funds_to_new_payee
+    - share_pii_outside_jurisdiction
+  required_authentication: true
+
+tags:
+  - purchase-order
+  - po-confirmation
+  - inventory-lookup
+  - cold-chain-capable
+
+schemas:
+  PurchaseOrder:
+    type: object
+    required: [reference, entity, amount]
+    properties:
+      reference:
+        type: string
+        pattern: "^PO-[0-9]+$"
+      entity:
+        type: string
+      amount:
+        type: number
+        minimum: 0
+      delivery_date_change_days:
+        type: integer
+      quantity_change_pct:
+        type: number
+  Confirmation:
+    type: object
+    properties:
+      confirmation_id:
+        type: string
+      confirmed_date:
+        type: string
+        format: date
+
+skills:
+  - id: confirm_po
+    description: Confirm a purchase order, with optional date or quantity adjustment.
+    input:
+      $ref: "#/schemas/PurchaseOrder"
+    output:
+      $ref: "#/schemas/Confirmation"
+    examples:
+      - name: happy-path-small-date-change
+        description: Two-day pull-in on delivery — within the auto-accept band.
+        in:
+          reference: PO-1234
+          entity: known-supplier-1
+          amount: 100
+          delivery_date_change_days: -2
+        out:
+          confirmation_id: C-9001
+          confirmed_date: "2026-05-30"
+        expected_verdict:
+          code: ACCEPTED_BY_RULE
+          binding: PROMISE
+          ref: accept-small-date-changes
+      - name: out-of-scope-entity
+        description: Caller is an entity we don't recognise.
+        in:
+          reference: PO-9999
+          entity: random-vendor
+          amount: 50
+        expected_verdict:
+          code: OUT_OF_SCOPE
+          binding: PROMISE
+          ref: unknown-entity
+
+  - id: cancel_po
+    description: Cancel a previously confirmed purchase order.
+    input:
+      type: object
+      required: [reference]
+      properties:
+        reference:
+          type: string
+        reason:
+          type: string
+    output:
+      type: object
+      properties:
+        canceled: { type: boolean }
+        refund_window_days: { type: integer }
+
+  - id: query_inventory
+    description: Return current stock-on-hand for a SKU.
+    input:
+      type: object
+      required: [sku]
+      properties:
+        sku: { type: string }
+    output:
+      type: object
+      properties:
+        sku: { type: string }
+        on_hand: { type: integer }
+        reserved: { type: integer }
+        warehouse: { type: string }
+
+authority:
+  - id: accept-small-date-changes
+    summary: Auto-accept delivery date adjustments within ±3 days.
+    keywords: [purchase_order, auto_accept, delivery_date, small_change]
+    description: |
+      Delivery date adjustments within ±3 days are accepted unilaterally —
+      the math is the math, no judgment required.
+    skill: confirm_po
+    field: delivery_date_change_days
+    binding_class: deterministic
+    when: "abs(input.delivery_date_change_days) <= 3"
+    then:
+      code: ACCEPTED_BY_RULE
+      action: UNILATERAL_COMMIT
+
+  - id: counter-large-quantity-changes
+    summary: Counter-offer with largest in-stock quantity when buyer requests >±5%.
+    keywords: [purchase_order, counter_offer, quantity_change, inventory_constrained]
+    description: |
+      Quantity changes beyond ±5% need a counter-offer pass — we'll respond
+      with what we can actually fulfil rather than refuse outright.
+    skill: confirm_po
+    field: quantity_change_pct
+    binding_class: judgment
+    when: "abs(input.quantity_change_pct) > 5"
+    then:
+      code: COUNTER_OFFER_LIKELY
+      action: COUNTER_OFFER
+      message: We will counter with the largest in-stock quantity.
+
+  - id: review-large-date-changes
+    summary: Route large delivery date adjustments (>±3 days) to a human reviewer.
+    keywords: [purchase_order, human_review, delivery_date, large_change]
+    description: Date adjustments beyond ±3 days fall into human review.
+    skill: confirm_po
+    field: delivery_date_change_days
+    binding_class: judgment
+    when: "abs(input.delivery_date_change_days) > 3"
+    then:
+      code: HUMAN_REVIEW_LIKELY
+      action: ESCALATED_TO_HUMAN
+
+instant_failures:
+  - id: unknown-entity
+    summary: Refuse purchase orders from entities not on our partner roster.
+    keywords: [purchase_order, allowlist, unknown_buyer]
+    description: We only do business with entities we've onboarded.
+    skill: confirm_po
+    when: "input.entity != 'known-supplier-1' and input.entity != 'known-supplier-2'"
+    code: OUT_OF_SCOPE
+    message: We don't recognise that entity.
+
+  - id: missing-reference
+    summary: Reject PO requests without a reference number.
+    keywords: [purchase_order, missing_input, reference]
+    description: All PO operations require a reference number.
+    when: "input.reference == null"
+    code: MISSING_INPUT
+    skill: confirm_po
+
+actions:
+  exposes:
+    - UNILATERAL_COMMIT
+    - COUNTER_OFFER
+    - PARTIAL_FULFILLMENT
+    - ESCALATED_TO_HUMAN
+
+sla:
+  confirm_po:
+    respond_within: "5m"
+    on_breach: ESCALATED_TO_HUMAN
+  cancel_po:
+    respond_within: "1h"
+    on_breach: ESCALATED_TO_HUMAN
+  query_inventory:
+    respond_within: "30s"
+    on_breach: FAILED
+
+lifecycle:
+  states:
+    - SUBMITTED
+    - WORKING
+    - COMPLETED
+    - FAILED
+    - ESCALATED

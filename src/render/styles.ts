@@ -56,6 +56,9 @@ pre code { background: transparent; padding: 0; font-size: 1em; }
 .tag.judgment { background: #f6e1cc; color: var(--estimate); }
 .tag.binding { background: #d5ecdc; color: var(--promise); margin-left: .5rem; }
 .tag.informational { background: #ecebe7; color: var(--muted); margin-left: .5rem; }
+.chip { display: inline-block; background: var(--code-bg); border-radius: 12px; padding: .12rem .55rem; font-size: .75rem; font-family: var(--mono); color: var(--muted); margin: .1rem .1rem 0 0; }
+.summary { margin: .35rem 0 .25rem 0; font-size: 1rem; color: var(--fg); }
+.keywords { margin-top: .35rem; }
 table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .95rem; }
 th, td { text-align: left; border-bottom: 1px solid var(--rule); padding: .5rem .75rem; vertical-align: top; }
 th { background: var(--code-bg); font-weight: 600; }

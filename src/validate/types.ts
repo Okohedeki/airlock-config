@@ -6,15 +6,16 @@
 export type AirlockContract = {
   airlock: string;
   agent: Agent;
-  schemas?: Record<string, unknown>;
-  skills: Skill[];
-  tools?: Tool[];
-  hooks?: Hook[];
-  mcp_servers?: MCPServer[];
+  category: Category;
+  region?: Region;
+  compliance?: ComplianceEntry[];
+  auth_model?: AuthModel;
+  pricing?: Pricing;
   permissions?: Permissions;
   guardrails?: Guardrails;
-  secrets?: SecretDecl[];
-  delegates_to?: string[];
+  tags?: string[];
+  schemas?: Record<string, unknown>;
+  skills: Skill[];
   authority?: AuthorityRule[];
   instant_failures?: InstantFailure[];
   actions?: Actions;
@@ -30,105 +31,48 @@ export type Agent = {
   channels?: Channel[];
   homepage?: string;
   contact?: { name?: string; url?: string; email?: string };
-  harness?: Harness;
-};
-
-export type Harness = {
-  framework?: string;
-  model?: string;
-  runtime?: string;
-  limits?: {
-    max_tokens?: number;
-    max_turns?: number;
-    max_tool_calls_per_turn?: number;
-    timeout?: string;
-  };
 };
 
 export type Channel = "http" | "a2a" | "email" | "edi";
 
-export type Skill = {
-  id: string;
-  description?: string;
-  input: Record<string, unknown>;
-  output: Record<string, unknown>;
-  examples?: Example[];
+export type Category = {
+  industry: Industry;
+  capability: Capability;
+  subcategory?: string;
 };
 
-export type Tool = {
-  id: string;
-  description?: string;
-  input_schema: Record<string, unknown>;
-  output_schema?: Record<string, unknown>;
-  side_effects?: ToolSideEffect[];
-  source?: {
-    kind: "mcp" | "builtin" | "plugin";
-    server?: string;
-  };
-  limits?: {
-    timeout?: string;
-    max_calls_per_skill?: number;
-  };
+export type Region = {
+  data_residency?: RegionCode[];
+  serves_regions?: RegionCode[];
 };
 
-export type ToolSideEffect =
-  | "fs.read"
-  | "fs.write"
-  | "network"
-  | "shell"
-  | "process"
-  | "compute-only";
-
-export type Hook = {
-  event: HookEvent;
-  mode: HookMode;
-  description?: string;
-  skill?: string;
-  tool?: string;
+export type ComplianceEntry = {
+  standard: ComplianceStandard;
+  status: "certified" | "self_attested" | "in_progress";
+  attestation_url?: string;
+  verified_at?: string;
 };
 
-export type HookEvent =
-  | "before_skill"
-  | "after_skill"
-  | "pre_tool_use"
-  | "post_tool_use"
-  | "on_error"
-  | "on_stop";
+export type AuthModel = {
+  methods: AuthMethod[];
+  enrollment: "open" | "approval_required" | "invite_only" | "enterprise_only";
+  support_url?: string;
+};
 
-export type HookMode = "observe" | "mutate" | "block";
-
-export type MCPServer = {
-  name: string;
-  endpoint?: string;
-  auth_posture?: "none" | "oauth" | "api-key" | "mtls" | "shared-secret";
-  allowed_tools?: string[];
+export type Pricing = {
+  model: "free" | "metered" | "subscription" | "enterprise" | "usage_tiered";
+  unit?: PricingUnit;
+  currency?: string;
+  price_url?: string;
+  free_tier?: { description?: string; limits?: string };
 };
 
 export type Permissions = {
-  allowed?: PermissionEntry[];
-  disallowed?: PermissionEntry[];
+  pii?: "none" | "minimal" | "moderate" | "extensive";
+  data_classes?: DataClass[];
+  retention?: string;
+  third_party_sharing?: "none" | "subprocessors_only" | "broad";
 };
-
-export type PermissionEntry = PermissionObject | string;
-
-export type PermissionObject = {
-  resource: PermissionResource;
-  op: string;
-  scope?: string;
-  reason?: string;
-};
-
-export type PermissionResource =
-  | "fs"
-  | "network"
-  | "tool"
-  | "mcp"
-  | "env"
-  | "secret";
-
-export const PERMISSION_RESOURCES: ReadonlySet<PermissionResource> = new Set<
-  PermissionResource
->(["fs", "network", "tool", "mcp", "env", "secret"]);
 
 export type Guardrails = {
   refused_topics?: string[];
@@ -136,9 +80,12 @@ export type Guardrails = {
   required_authentication?: boolean;
 };
 
-export type SecretDecl = {
-  name: string;
-  purpose?: string;
+export type Skill = {
+  id: string;
+  description?: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  examples?: Example[];
 };
 
 export type Example = {
@@ -155,16 +102,12 @@ export type ExpectedVerdict = {
   ref?: string;
 };
 
-/**
- * Authority rules target exactly one of `skill` or `tool` (enforced by the JSON
- * Schema oneOf). The TypeScript surface keeps both optional for ergonomics; the
- * pipeline checks which is set.
- */
 export type AuthorityRule = {
   id: string;
+  summary?: string;
+  keywords?: string[];
   description?: string;
-  skill?: string;
-  tool?: string;
+  skill: string;
   field?: string;
   binding_class: BindingClass;
   when: string;
@@ -181,6 +124,8 @@ export type RuleOutcome = {
 
 export type InstantFailure = {
   id: string;
+  summary?: string;
+  keywords?: string[];
   description?: string;
   skill?: string;
   when: string;
@@ -211,8 +156,109 @@ export type BindingClass = "deterministic" | "judgment";
 export type Binding = "PROMISE" | "ESTIMATE";
 
 /**
- * Phase 1–4 status codes (pre-flight). Phases 5–6 are real-response only and
- * appear in different schema fields (lifecycle.states and actions.exposes).
+ * Curated v0.4 vocabularies. Adding values requires an ADR.
+ * Mirror of docs/taxonomies.md.
+ */
+
+export type Industry =
+  | "logistics"
+  | "procurement"
+  | "fintech"
+  | "healthcare"
+  | "retail"
+  | "manufacturing"
+  | "legal"
+  | "hr"
+  | "customer_support"
+  | "dev_tools"
+  | "data_analytics"
+  | "marketing"
+  | "real_estate"
+  | "education"
+  | "energy"
+  | "government"
+  | "media"
+  | "other";
+
+export type Capability =
+  | "transaction_processing"
+  | "lookup"
+  | "scheduling"
+  | "notification"
+  | "data_extraction"
+  | "data_enrichment"
+  | "decision_support"
+  | "negotiation"
+  | "workflow_orchestration"
+  | "content_generation"
+  | "monitoring"
+  | "translation"
+  | "summarization"
+  | "other";
+
+export type RegionCode =
+  | "us-east"
+  | "us-west"
+  | "us-central"
+  | "ca"
+  | "eu-west"
+  | "eu-central"
+  | "uk"
+  | "apac-east"
+  | "apac-southeast"
+  | "apac-south"
+  | "anz"
+  | "latam"
+  | "mea"
+  | "global";
+
+export type ComplianceStandard =
+  | "SOC2_TYPE_1"
+  | "SOC2_TYPE_2"
+  | "ISO_27001"
+  | "ISO_27701"
+  | "HIPAA"
+  | "HITRUST"
+  | "GDPR"
+  | "CCPA"
+  | "PCI_DSS"
+  | "FedRAMP_MODERATE"
+  | "FedRAMP_HIGH"
+  | "EU_AI_ACT";
+
+export type AuthMethod =
+  | "none"
+  | "api_key"
+  | "oauth2_client_credentials"
+  | "oauth2_auth_code"
+  | "mtls"
+  | "signed_jwt"
+  | "webauthn";
+
+export type PricingUnit =
+  | "per_call"
+  | "per_skill_invocation"
+  | "per_token"
+  | "per_month"
+  | "per_seat_per_month"
+  | "per_year";
+
+export type DataClass =
+  | "pii"
+  | "phi"
+  | "payment_card"
+  | "financial"
+  | "health"
+  | "government_id"
+  | "biometric"
+  | "location"
+  | "behavioral"
+  | "credentials"
+  | "business_confidential"
+  | "public";
+
+/**
+ * Phase 1–4 status codes (pre-flight). Phases 5–6 are real-response only.
  */
 export type StatusCode =
   // Phase 1 — Identification (PROMISE)
@@ -288,4 +334,30 @@ export const ACTION_CODES: ReadonlySet<ActionCode> = new Set<ActionCode>([
   "COUNTER_OFFER",
   "PARTIAL_FULFILLMENT",
   "ESCALATED_TO_HUMAN",
+]);
+
+/**
+ * Recommended (not closed) vocabulary for guardrails. The lint warns on values
+ * outside this set but does not reject them — the publisher may need a refusal
+ * term we haven't anticipated. Mirror of docs/taxonomies.md.
+ */
+export const RECOMMENDED_REFUSED_TOPICS: ReadonlySet<string> = new Set([
+  "financial_advice",
+  "medical_diagnosis",
+  "legal_counsel",
+  "investment_recommendation",
+  "political_endorsement",
+  "self_harm",
+  "violent_content",
+  "regulated_substances",
+]);
+
+export const RECOMMENDED_REFUSED_ACTIONS: ReadonlySet<string> = new Set([
+  "transfer_funds_to_new_payee",
+  "share_credentials",
+  "share_pii_outside_jurisdiction",
+  "delete_production_data",
+  "execute_unauthorized_code",
+  "auto_publish_to_external_channel",
+  "auto_sign_legal_document",
 ]);

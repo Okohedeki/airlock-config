@@ -1,4 +1,4 @@
-name: Publish Airlock contract to GitHub Pages
+name: Publish Airlock site to GitHub Pages
 
 on:
   push:
@@ -12,10 +12,9 @@ on:
       - ".github/workflows/pages.yml"
   workflow_dispatch:
     inputs:
-      contract:
-        description: "Path to the contract YAML to publish"
-        default: "examples/agent-harness.airlock.yaml"
-        required: true
+      featured:
+        description: "Agent name to feature on the home page CTA (default: supplier-agent)"
+        required: false
 
 permissions:
   contents: read
@@ -46,13 +45,18 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build (compile TS)
+      - name: Build (compile TS + playground)
         run: npm run build
 
-      - name: Build static bundle
+      - name: Build site (home page + all example bundles)
         env:
-          CONTRACT: ${{ github.event.inputs.contract || 'examples/agent-harness.airlock.yaml' }}
-        run: node dist/cli.js build "$CONTRACT" --out ./pages-out
+          FEATURED: ${{ github.event.inputs.featured }}
+        run: |
+          if [ -n "$FEATURED" ]; then
+            node dist/cli.js build-site --out ./pages-out --featured "$FEATURED"
+          else
+            node dist/cli.js build-site --out ./pages-out
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

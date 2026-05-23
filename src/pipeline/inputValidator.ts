@@ -5,7 +5,7 @@
 
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import type { AirlockContract, Skill, Tool } from "../validate/types.js";
+import type { AirlockContract, Skill } from "../validate/types.js";
 
 export type InputValidator = (input: unknown) =>
   | { ok: true }
@@ -67,8 +67,4 @@ function rewriteRefs(node: unknown): unknown {
 // Exported only for callers that need to inspect the skill they validated against.
 export function findSkill(contract: AirlockContract, id: string): Skill | undefined {
   return contract.skills.find((s) => s.id === id);
-}
-
-export function findTool(contract: AirlockContract, id: string): Tool | undefined {
-  return contract.tools?.find((t) => t.id === id);
 }

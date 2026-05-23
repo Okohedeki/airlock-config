@@ -6,11 +6,9 @@
  *
  * Routes:
  *   GET  /.well-known/airlock.yaml      The contract itself (raw)
- *   GET  /                              Human-friendly index (lists skills, tools, endpoints)
+ *   GET  /                              Human-friendly index (lists skills, endpoints)
  *   POST /skills/:skillId               Real call — runs the full pipeline, synthesizes a response
  *   POST /preflight/:skillId            Pre-flight verdict only (no side effects)
- *   POST /tools/:toolId                 (v0.3) Simulate a tool invocation; verdict + faked output
- *   POST /preflight-tool/:toolId        (v0.3) Tool-invocation verdict only
  *
  * Designed for `airlock sandbox <contract.yaml>` — single-tenant, single-contract,
  * single-process. Not a multi-tenant runtime; that's Layer 3.
@@ -21,10 +19,8 @@ import { readFileSync } from "node:fs";
 import type { AirlockContract } from "../validate/types.js";
 import {
   evaluateRequest,
-  evaluateToolCall,
   prepareContract,
   synthesizeDetailEnvelope,
-  synthesizeToolEnvelope,
   type PreparedContract,
   type SynthesizedDetail,
   type Verdict,
@@ -33,10 +29,6 @@ import {
 export type SandboxOptions = {
   port?: number;
   host?: string;
-  /**
-   * Raw contract source — served at /.well-known/airlock.yaml verbatim. If omitted,
-   * we serve YAML stringified from the parsed contract (still valid, may be reformatted).
-   */
   contractSource?: string;
 };
 
@@ -95,7 +87,6 @@ async function handleRequest(
     return;
   }
 
-  // /skills/:skillId  or  /preflight/:skillId
   const skillMatch = /^\/(skills|preflight)\/([a-z][a-z0-9_]*)$/.exec(pathname);
   if (method === "POST" && skillMatch) {
     const mode = skillMatch[1] as "skills" | "preflight";
@@ -115,32 +106,6 @@ async function handleRequest(
       return;
     }
     const envelope = synthesizeDetailEnvelope(contract, skillId, verdict, body.value);
-    const withDetail: Verdict =
-      envelope.source === "none" ? verdict : { ...verdict, detail: envelope.value };
-    writeJsonWithSource(res, statusFromVerdict(verdict), withDetail, envelope);
-    return;
-  }
-
-  // /tools/:toolId  or  /preflight-tool/:toolId  (v0.3)
-  const toolMatch = /^\/(tools|preflight-tool)\/([a-z][a-z0-9_]*)$/.exec(pathname);
-  if (method === "POST" && toolMatch) {
-    const mode = toolMatch[1] as "tools" | "preflight-tool";
-    const toolId = toolMatch[2]!;
-    const body = await readJsonBody(req);
-    if ("error" in body) {
-      writeJson(res, 400, {
-        code: "MALFORMED_INPUT",
-        binding: "PROMISE",
-        reason: body.error,
-      });
-      return;
-    }
-    const verdict = evaluateToolCall(prepared, { tool: toolId, input: body.value });
-    if (mode === "preflight-tool") {
-      writeJson(res, statusFromVerdict(verdict), verdict);
-      return;
-    }
-    const envelope = synthesizeToolEnvelope(contract, toolId, verdict, body.value);
     const withDetail: Verdict =
       envelope.source === "none" ? verdict : { ...verdict, detail: envelope.value };
     writeJsonWithSource(res, statusFromVerdict(verdict), withDetail, envelope);
@@ -170,6 +135,8 @@ function serveIndex(res: ServerResponse, contract: AirlockContract): void {
     "",
     contract.agent.description ?? "",
     "",
+    `Category: ${contract.category.industry} / ${contract.category.capability}`,
+    "",
     "## Discovery",
     "",
     "- Contract:  GET  /.well-known/airlock.yaml",
@@ -181,16 +148,6 @@ function serveIndex(res: ServerResponse, contract: AirlockContract): void {
     lines.push(`- POST /skills/${skill.id}        — real call (synthesized response)`);
     lines.push(`  POST /preflight/${skill.id}     — verdict only, no side effect`);
     if (skill.description) lines.push(`  ${skill.description}`);
-  }
-  if (contract.tools && contract.tools.length > 0) {
-    lines.push("");
-    lines.push("## Tools (internal harness capabilities)");
-    lines.push("");
-    for (const tool of contract.tools) {
-      lines.push(`- POST /tools/${tool.id}             — simulate a tool invocation`);
-      lines.push(`  POST /preflight-tool/${tool.id}    — invocation verdict only`);
-      if (tool.description) lines.push(`  ${tool.description}`);
-    }
   }
   lines.push("");
   lines.push("## Status codes");
@@ -274,9 +231,6 @@ async function readJsonBody(req: IncomingMessage): Promise<{ value: unknown } | 
   }
 }
 
-/**
- * Convenience: load contract from disk, start the sandbox.
- */
 export async function startSandboxFromFile(
   path: string,
   opts: SandboxOptions = {},

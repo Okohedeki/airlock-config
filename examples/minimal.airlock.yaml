@@ -1,8 +1,11 @@
-airlock: "0.3"
+airlock: "0.4"
 agent:
   name: hello-agent
   version: 0.1.0
   description: The smallest legal Airlock contract — a single skill with no rules.
+category:
+  industry: other
+  capability: other
 skills:
   - id: ping
     description: Liveness check.

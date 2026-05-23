@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 /**
  * Airlock CLI entry point.
- *
- * v1 commands:
- *   airlock validate <path>     Validate a contract file (YAML or JSON).
- *
- * More commands land as the build order progresses:
- *   test, check, preflight, build, search, codegen, init.
  */
 
 import { readFileSync } from "node:fs";
@@ -14,15 +8,27 @@ import { Command } from "commander";
 import { validateContractFile, type ValidationIssue } from "./index.js";
 import { startSandboxFromFile } from "./sandbox/index.js";
 import { preflight } from "./preflight/index.js";
-import { buildFromFile } from "./render/index.js";
+import { buildFromFile, buildSite } from "./render/index.js";
 import { conform, formatReport } from "./conform/index.js";
+import {
+  buildRegistryEntry,
+  searchRegistry,
+  type SearchFilters,
+} from "./registry/index.js";
+import type {
+  AuthMethod,
+  Capability,
+  ComplianceStandard,
+  Industry,
+  RegionCode,
+} from "./validate/types.js";
 
 const program = new Command();
 
 program
   .name("airlock")
-  .description("Contract format + tooling for agent-driven services")
-  .version("0.1.0");
+  .description("Contract format + tooling for self-deployed business agents")
+  .version("0.4.0");
 
 program
   .command("validate")
@@ -53,7 +59,7 @@ program
     }
 
     if (warnings.length > 0) {
-      const heading = errors.length > 0 ? "Warnings:\n" : `WARN ${path}\n\n`;
+      const heading = errors.length > 0 ? "\nWarnings:\n" : `WARN ${path}\n\n`;
       process.stderr.write(heading);
       for (const issue of warnings) {
         process.stderr.write(formatIssue(issue, "warning") + "\n");
@@ -152,6 +158,87 @@ program
     process.stdout.write(`built ${result.files.length} files in ${result.outDir}\n`);
     for (const f of result.files) {
       process.stdout.write(`  ${f}\n`);
+    }
+  });
+
+program
+  .command("build-site")
+  .description("Build the project site — product home page at root + every example bundle under examples/<name>/")
+  .option("-o, --out <dir>", "output directory (default: ./dist)", "./dist")
+  .option("-e, --examples <dir>", "examples directory (default: ./examples)", "./examples")
+  .option("--featured <name>", "agent name to feature on the home page CTA")
+  .option("--repo-url <url>", "override the repo URL in the home page footer")
+  .action((opts: { out: string; examples: string; featured?: string; repoUrl?: string }) => {
+    const result = buildSite({
+      outDir: opts.out,
+      examplesDir: opts.examples,
+      ...(opts.featured !== undefined ? { featuredExample: opts.featured } : {}),
+      ...(opts.repoUrl !== undefined ? { repoUrl: opts.repoUrl } : {}),
+    });
+    process.stdout.write(`built site with ${result.examples.length} examples in ${result.outDir}\n`);
+    for (const f of result.files) {
+      process.stdout.write(`  ${f}\n`);
+    }
+  });
+
+program
+  .command("register-entry")
+  .description("Emit a registry index entry derived from a validated contract")
+  .requiredOption("-c, --contract <path>", "path to contract file")
+  .requiredOption("-u, --url <url>", "URL the contract is hosted at")
+  .action((opts: { contract: string; url: string }) => {
+    const result = validateContractFile(opts.contract);
+    if (!result.ok || !result.contract) {
+      process.stderr.write(`Cannot build registry entry — contract is invalid:\n`);
+      for (const issue of result.issues) {
+        process.stderr.write(`  ${issue.path}: ${issue.message}\n`);
+      }
+      process.exit(1);
+    }
+    const entry = buildRegistryEntry(result.contract, opts.url);
+    process.stdout.write(JSON.stringify(entry, null, 2) + "\n");
+  });
+
+program
+  .command("search")
+  .description("Search the Airlock registry (filters compose with AND)")
+  .option("-q, --query <text>", "substring match against name + description")
+  .option("--industry <value>", "filter by category.industry")
+  .option("--capability <value>", "filter by category.capability")
+  .option("--region <value>", "filter by data_residency OR serves_regions")
+  .option("--compliance <value>", "filter by compliance standard (any entry matches)")
+  .option("--auth-method <value>", "filter by auth_model.methods")
+  .option("--pricing-model <value>", "filter by pricing.model")
+  .option("--tag <value>", "filter by tag")
+  .option("--keyword <value>", "filter by rule keyword")
+  .option("--url <url>", "registry URL override")
+  .option("--json", "emit results as JSON")
+  .action(async (opts: Record<string, string | undefined>) => {
+    const filters: SearchFilters = {};
+    if (opts.query) filters.query = opts.query;
+    if (opts.industry) filters.industry = opts.industry as Industry;
+    if (opts.capability) filters.capability = opts.capability as Capability;
+    if (opts.region) filters.region = opts.region as RegionCode;
+    if (opts.compliance) filters.compliance = opts.compliance as ComplianceStandard;
+    if (opts.authMethod) filters.auth_method = opts.authMethod as AuthMethod;
+    if (opts.pricingModel) filters.pricing_model = opts.pricingModel as SearchFilters["pricing_model"];
+    if (opts.tag) filters.tag = opts.tag;
+    if (opts.keyword) filters.keyword = opts.keyword;
+
+    const entries = await searchRegistry(filters, opts.url ? { url: opts.url } : {});
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(entries, null, 2) + "\n");
+      return;
+    }
+    if (entries.length === 0) {
+      process.stdout.write("no matches\n");
+      return;
+    }
+    for (const e of entries) {
+      process.stdout.write(`${e.name} ${e.version}  ${e.category.industry}/${e.category.capability}\n`);
+      process.stdout.write(`  ${e.contract_url}\n`);
+      if (e.description) process.stdout.write(`  ${e.description.split("\n")[0]}\n`);
+      process.stdout.write("\n");
     }
   });
 

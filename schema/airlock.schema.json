@@ -1,60 +1,50 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://airlock.dev/schema/0.3/airlock.schema.json",
+  "$id": "https://airlock.dev/schema/0.4/airlock.schema.json",
   "title": "Airlock Contract",
-  "description": "Schema for an Airlock contract: a self-declared disclosure of how an AI-agent harness handles inbound traffic and what it can/can't do internally. v0.3 reframes the contract from a service-RPC manifest into a full harness-capability disclosure. See CONTEXT.md and docs/adr/ for the canonical terminology and decisions. Per ADR 0004, blocks are tagged in their descriptions as 'binding' (load-bearing promise) or 'informational' (deployment fact, may change in minor versions).",
+  "description": "Schema for an Airlock contract: a self-declared, machine-readable disclosure of what a self-deployed business agent does, who it serves, and on what terms, packaged so other businesses' AI agents can discover and integrate without prior coordination. v0.4 reframes the schema around buyer-facing questions (category, region, compliance, auth_model, pricing) and removes the v0.3 harness-internal blocks. See CONTEXT.md, docs/adr/0006, and docs/taxonomies.md.",
   "type": "object",
-  "required": ["airlock", "agent", "skills"],
+  "required": ["airlock", "agent", "category", "skills"],
   "additionalProperties": false,
   "properties": {
     "airlock": {
       "type": "string",
-      "description": "Airlock spec version this contract conforms to. v0.3 is the current major; v0.1 and v0.2 are not accepted (see docs/migration-v01-to-v03.md).",
-      "pattern": "^0\\.3(\\.\\d+)?$"
+      "description": "Airlock spec version. v0.4 is current; v0.1/v0.2/v0.3 are rejected (see docs/migration-v03-to-v04.md).",
+      "pattern": "^0\\.4(\\.\\d+)?$"
     },
     "agent": { "$ref": "#/$defs/Agent" },
+    "category": { "$ref": "#/$defs/Category" },
+    "region": { "$ref": "#/$defs/Region" },
+    "compliance": {
+      "type": "array",
+      "description": "BINDING. Certifications and attestations the publisher claims. Each entry carries a status (certified | self_attested | in_progress) so consumers can weigh the claim.",
+      "items": { "$ref": "#/$defs/ComplianceEntry" }
+    },
+    "auth_model": { "$ref": "#/$defs/AuthModel" },
+    "pricing": { "$ref": "#/$defs/Pricing" },
+    "permissions": { "$ref": "#/$defs/Permissions" },
+    "guardrails": { "$ref": "#/$defs/Guardrails" },
+    "tags": {
+      "type": "array",
+      "description": "BINDING (open vocabulary). Free-form keywords the registry indexes alongside the curated category fields.",
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "uniqueItems": true,
+      "maxItems": 32
+    },
     "schemas": {
       "type": "object",
-      "description": "Reusable type definitions referenced by skills and tools via $ref.",
+      "description": "Reusable type definitions referenced by skills via $ref.",
       "additionalProperties": { "$ref": "#/$defs/TypeDef" }
     },
     "skills": {
       "type": "array",
-      "description": "BINDING. The set of skills this agent exposes to consumers. Each skill is one named external interaction. Consumers call skills; the harness may reach for tools to fulfill them.",
+      "description": "BINDING. The set of skills this agent exposes to consumer agents. Each skill is one named external interaction.",
       "minItems": 1,
       "items": { "$ref": "#/$defs/Skill" }
     },
-    "tools": {
-      "type": "array",
-      "description": "BINDING. Discrete capabilities the harness invokes internally during its work (e.g. read_file, bash, web_fetch). Distinct from skills. Authority rules and permissions may target tools.",
-      "items": { "$ref": "#/$defs/Tool" }
-    },
-    "hooks": {
-      "type": "array",
-      "description": "BINDING. Lifecycle interception points the harness fires. Each hook's mode (observe/mutate/block) is load-bearing — consumers reason about blast radius differently for a silent observer than for a mutating gate.",
-      "items": { "$ref": "#/$defs/Hook" }
-    },
-    "mcp_servers": {
-      "type": "array",
-      "description": "INFORMATIONAL. Model Context Protocol servers the harness loads to source tools from. Tools sourced via MCP carry a `source: {kind: 'mcp', server: '<name>'}` discriminator. Per ADR 0004, swapping MCP servers does not require a major bump as long as the tools surface is preserved.",
-      "items": { "$ref": "#/$defs/MCPServer" }
-    },
-    "permissions": { "$ref": "#/$defs/Permissions" },
-    "guardrails": { "$ref": "#/$defs/Guardrails" },
-    "secrets": {
-      "type": "array",
-      "description": "INFORMATIONAL. Named env-vars or credentials the harness reads. Names and purposes only — never values. Lets consumers reason about blast radius.",
-      "items": { "$ref": "#/$defs/SecretDecl" }
-    },
-    "delegates_to": {
-      "type": "array",
-      "description": "INFORMATIONAL. Other Airlock contract URLs this agent may dispatch sub-work to. A transitive trust surface; consumers fetch the linked contracts and reason about the chain.",
-      "items": { "type": "string", "format": "uri" },
-      "uniqueItems": true
-    },
     "authority": {
       "type": "array",
-      "description": "BINDING. Declarative rules describing what the agent will do unilaterally vs. refuse vs. escalate. Each rule self-classifies its binding_class and targets either a skill or a tool.",
+      "description": "BINDING. Declarative rules describing what the agent will do unilaterally vs. refuse vs. escalate. Each rule self-classifies its binding_class and carries an optional human-readable summary + keywords for indexing.",
       "items": { "$ref": "#/$defs/AuthorityRule" }
     },
     "instant_failures": {
@@ -65,7 +55,7 @@
     "actions": { "$ref": "#/$defs/Actions" },
     "sla": {
       "type": "object",
-      "description": "BINDING. Per-skill or per-tool response time commitments. Keys may be a bare skill id (back-compat shorthand for `skill:<id>`), or `skill:<id>` / `tool:<id>` explicitly.",
+      "description": "BINDING. Per-skill response-time commitments. Keys are skill ids.",
       "additionalProperties": { "$ref": "#/$defs/SLA" }
     },
     "lifecycle": { "$ref": "#/$defs/Lifecycle" },
@@ -91,7 +81,7 @@
         },
         "description": {
           "type": "string",
-          "description": "Human and LLM-readable summary of what the agent does."
+          "description": "Human and LLM-readable summary of what the agent does and who it serves. The most important single field for indexing relevance."
         },
         "channels": {
           "type": "array",
@@ -103,7 +93,7 @@
         "homepage": {
           "type": "string",
           "format": "uri",
-          "description": "Publisher's landing page or product URL (for the rendered docs)."
+          "description": "Publisher's landing page or product URL."
         },
         "contact": {
           "type": "object",
@@ -113,41 +103,171 @@
             "url": { "type": "string", "format": "uri" },
             "email": { "type": "string", "format": "email" }
           }
-        },
-        "harness": { "$ref": "#/$defs/Harness" }
+        }
       }
     },
 
-    "Harness": {
+    "Category": {
       "type": "object",
-      "description": "INFORMATIONAL. Runtime envelope serving this contract. Per ADR 0004, changes here do not require a major bump.",
+      "description": "BINDING. The most important indexing surface — a registry can pre-filter every buyer query on these two fields. Both are required; both use curated closed vocabularies (see docs/taxonomies.md).",
+      "required": ["industry", "capability"],
       "additionalProperties": false,
       "properties": {
-        "framework": {
+        "industry": { "$ref": "#/$defs/Industry" },
+        "capability": { "$ref": "#/$defs/Capability" },
+        "subcategory": {
           "type": "string",
-          "description": "Harness implementation. Free string (e.g. 'claude-code', 'openai-agents', 'langchain', 'custom')."
+          "description": "Optional free-form refinement under the chosen industry (e.g. 'logistics:cold-chain'). Indexed; not part of the closed vocabulary.",
+          "maxLength": 64
+        }
+      }
+    },
+
+    "Region": {
+      "type": "object",
+      "description": "BINDING. Geographic posture. data_residency describes where the agent's own data lives; serves_regions describes which regions consumers may successfully transact from.",
+      "additionalProperties": false,
+      "properties": {
+        "data_residency": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RegionCode" },
+          "uniqueItems": true
         },
+        "serves_regions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RegionCode" },
+          "uniqueItems": true
+        }
+      }
+    },
+
+    "ComplianceEntry": {
+      "type": "object",
+      "required": ["standard", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "standard": { "$ref": "#/$defs/ComplianceStandard" },
+        "status": {
+          "enum": ["certified", "self_attested", "in_progress"],
+          "description": "certified = third-party attested; self_attested = publisher claim only; in_progress = pursuing certification."
+        },
+        "attestation_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional pointer to the audit report, certificate, or self-attestation document."
+        },
+        "verified_at": {
+          "type": "string",
+          "format": "date",
+          "description": "Date the certification was issued or last renewed."
+        }
+      }
+    },
+
+    "AuthModel": {
+      "type": "object",
+      "description": "BINDING. How a consumer agent authenticates and how it gets enrolled.",
+      "required": ["methods", "enrollment"],
+      "additionalProperties": false,
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AuthMethod" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "enrollment": {
+          "enum": ["open", "approval_required", "invite_only", "enterprise_only"],
+          "description": "open = anyone may register a key; approval_required = manual review; invite_only = onboarded by the publisher; enterprise_only = contract precedes API access."
+        },
+        "support_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Where a consumer goes to enrol or ask for credentials."
+        }
+      }
+    },
+
+    "Pricing": {
+      "type": "object",
+      "description": "BINDING (model + unit). Pricing posture so buyers can pre-filter. Hard numbers live behind price_url because they change too fast to live in the contract.",
+      "required": ["model"],
+      "additionalProperties": false,
+      "properties": {
         "model": {
-          "type": "string",
-          "description": "Primary model the harness drives (e.g. 'claude-opus-4-7', 'gpt-5-pro')."
+          "enum": ["free", "metered", "subscription", "enterprise", "usage_tiered"]
         },
-        "runtime": {
-          "type": "string",
-          "description": "Runtime stack (e.g. 'node-24', 'python-3.12', 'browser', 'cloudflare-workers')."
+        "unit": {
+          "$ref": "#/$defs/PricingUnit",
+          "description": "Optional billing unit when model is metered/usage_tiered."
         },
-        "limits": {
+        "currency": {
+          "type": "string",
+          "description": "ISO 4217 currency code (e.g. USD, EUR). Optional.",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "price_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "INFORMATIONAL. Canonical commercial-terms link buyers follow for actual numbers. Kept out of the schema so it can change without bumping."
+        },
+        "free_tier": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "max_tokens": { "type": "integer", "minimum": 0 },
-            "max_turns": { "type": "integer", "minimum": 0 },
-            "max_tool_calls_per_turn": { "type": "integer", "minimum": 0 },
-            "timeout": {
-              "type": "string",
-              "description": "Duration string (e.g. '5m', '1h').",
-              "pattern": "^\\d+(s|m|h|d)$"
-            }
+            "description": { "type": "string" },
+            "limits": { "type": "string" }
           }
+        }
+      }
+    },
+
+    "Permissions": {
+      "type": "object",
+      "description": "BINDING. Data-access disclosure for the buyer's risk-management process. NOT a developer-facing fs/network/tool allowlist — that lived in v0.3 and is gone.",
+      "additionalProperties": false,
+      "properties": {
+        "pii": {
+          "enum": ["none", "minimal", "moderate", "extensive"],
+          "description": "How much personal information the agent ingests in normal operation."
+        },
+        "data_classes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DataClass" },
+          "uniqueItems": true
+        },
+        "retention": {
+          "type": "string",
+          "description": "Duration data is retained after the interaction completes (e.g. '0s', '30d', '7y', 'indefinite').",
+          "pattern": "^(0s|\\d+(s|m|h|d|y)|indefinite)$"
+        },
+        "third_party_sharing": {
+          "enum": ["none", "subprocessors_only", "broad"],
+          "description": "Whether the agent shares ingested data with any third party."
+        }
+      }
+    },
+
+    "Guardrails": {
+      "type": "object",
+      "description": "BINDING. Categorical refusals at the agent level. refused_topics / refused_actions are free-form strings linted against the recommended vocabulary in docs/taxonomies.md.",
+      "additionalProperties": false,
+      "properties": {
+        "refused_topics": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "uniqueItems": true,
+          "description": "Topic strings the agent will not engage with (e.g. 'financial_advice', 'medical_diagnosis')."
+        },
+        "refused_actions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "uniqueItems": true,
+          "description": "Named actions the agent will not perform (e.g. 'commit_secrets', 'transfer_funds_to_new_payee')."
+        },
+        "required_authentication": {
+          "type": "boolean",
+          "description": "If true, the agent refuses unauthenticated requests categorically."
         }
       }
     },
@@ -178,185 +298,9 @@
         },
         "examples": {
           "type": "array",
-          "description": "Worked examples. Used by the renderer (humans), the sandbox (replay), and the conformance runner (test fixtures). When no example matches a verdict, the sandbox falls back to the schema-derived faker (see ADR 0005).",
+          "description": "Worked examples. Used by the renderer, the sandbox (example replay), and the conformance runner. The sandbox falls back to a schema-derived faker when no example matches (see ADR 0005).",
           "items": { "$ref": "#/$defs/Example" }
         }
-      }
-    },
-
-    "Tool": {
-      "type": "object",
-      "required": ["id", "input_schema"],
-      "additionalProperties": false,
-      "description": "A capability the harness invokes during its work. Differs from a Skill: skills are external (consumers call them); tools are internal (the harness reaches for them).",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique tool identifier. Recommend snake_case.",
-          "pattern": "^[a-z][a-z0-9_]*$"
-        },
-        "description": { "type": "string" },
-        "input_schema": {
-          "description": "JSON Schema for tool invocation arguments. Inline or $ref into #/schemas.",
-          "type": "object"
-        },
-        "output_schema": {
-          "description": "JSON Schema for tool output. The faker uses this when synthesising tool-call envelopes.",
-          "type": "object"
-        },
-        "side_effects": {
-          "type": "array",
-          "description": "Effects this tool may have. Closed enum for v0.3.",
-          "items": { "enum": ["fs.read", "fs.write", "network", "shell", "process", "compute-only"] },
-          "uniqueItems": true
-        },
-        "source": {
-          "description": "Where this tool comes from. Omit for built-in tools.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind"],
-          "properties": {
-            "kind": { "enum": ["mcp", "builtin", "plugin"] },
-            "server": {
-              "type": "string",
-              "description": "When kind=mcp, the name of the MCP server (must match an entry in mcp_servers[])."
-            }
-          }
-        },
-        "limits": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Per-tool cost/SLA shape. Optional.",
-          "properties": {
-            "timeout": { "type": "string", "pattern": "^\\d+(s|m|h|d)$" },
-            "max_calls_per_skill": { "type": "integer", "minimum": 0 }
-          }
-        }
-      }
-    },
-
-    "Hook": {
-      "type": "object",
-      "required": ["event", "mode"],
-      "additionalProperties": false,
-      "properties": {
-        "event": {
-          "enum": ["before_skill", "after_skill", "pre_tool_use", "post_tool_use", "on_error", "on_stop"]
-        },
-        "mode": {
-          "enum": ["observe", "mutate", "block"],
-          "description": "observe = read-only audit. mutate = may rewrite the in-flight payload. block = may halt the action. Mode is binding; consumers reason about blast radius based on it."
-        },
-        "description": { "type": "string" },
-        "skill": {
-          "type": "string",
-          "description": "Optional: scope this hook to a specific skill id. Omit to apply to all."
-        },
-        "tool": {
-          "type": "string",
-          "description": "Optional: scope this hook to a specific tool id. Only meaningful for pre_tool_use/post_tool_use events."
-        }
-      }
-    },
-
-    "MCPServer": {
-      "type": "object",
-      "required": ["name"],
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Stable identifier (referenced by tools[].source.server).",
-          "pattern": "^[a-z][a-z0-9_-]*$"
-        },
-        "endpoint": {
-          "type": "string",
-          "description": "MCP server URL or local command. Informational only."
-        },
-        "auth_posture": {
-          "enum": ["none", "oauth", "api-key", "mtls", "shared-secret"]
-        },
-        "allowed_tools": {
-          "type": "array",
-          "description": "Subset whitelist of the server's tools the harness will actually expose. If omitted, all tools from this server are exposed.",
-          "items": { "type": "string" },
-          "uniqueItems": true
-        }
-      }
-    },
-
-    "Permissions": {
-      "type": "object",
-      "description": "BINDING. Static allow/disallow entries against typed resources. Per ADR 0004, the resource taxonomy is a closed v0.3 enum; unknown resources are linted as warnings.",
-      "additionalProperties": false,
-      "properties": {
-        "allowed": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/PermissionEntry" }
-        },
-        "disallowed": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/PermissionEntry" }
-        }
-      }
-    },
-
-    "PermissionEntry": {
-      "description": "Either a structured object {resource, op, scope} or its short-form string 'resource.op:scope' (e.g. 'fs.read:./src/**'). Loader canonicalizes strings to the object form.",
-      "oneOf": [
-        {
-          "type": "object",
-          "required": ["resource", "op"],
-          "additionalProperties": false,
-          "properties": {
-            "resource": { "enum": ["fs", "network", "tool", "mcp", "env", "secret"] },
-            "op": {
-              "type": "string",
-              "description": "Operation specific to the resource (e.g. 'read', 'write' for fs; 'connect' for network; the verb for tool/mcp; 'read' for env/secret)."
-            },
-            "scope": {
-              "type": "string",
-              "description": "Resource-specific scope grammar — globs for fs, hostnames/CIDRs for network, tool ids for tool, server names for mcp, var names for env/secret."
-            },
-            "reason": { "type": "string" }
-          }
-        },
-        {
-          "type": "string",
-          "description": "Short-form: 'resource.op:scope'. Examples: 'fs.read:./src/**', 'network:api.github.com', 'tool:bash:rm *'."
-        }
-      ]
-    },
-
-    "Guardrails": {
-      "type": "object",
-      "description": "BINDING. Categorical refusals at the agent level (coarser than authority rules).",
-      "additionalProperties": false,
-      "properties": {
-        "refused_topics": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Topic strings the agent will not engage with (e.g. 'financial-advice', 'medical-diagnosis')."
-        },
-        "refused_actions": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Named actions the agent will not perform (e.g. 'commit-secrets', 'force-push-main', 'delete-production-data')."
-        },
-        "required_authentication": {
-          "type": "boolean",
-          "description": "If true, the agent refuses unauthenticated requests categorically."
-        }
-      }
-    },
-
-    "SecretDecl": {
-      "type": "object",
-      "required": ["name"],
-      "additionalProperties": false,
-      "properties": {
-        "name": { "type": "string", "description": "Env-var or credential name. Never the value." },
-        "purpose": { "type": "string", "description": "What the harness uses this secret for." }
       }
     },
 
@@ -387,23 +331,31 @@
 
     "AuthorityRule": {
       "type": "object",
-      "required": ["id", "binding_class", "when", "then"],
+      "required": ["id", "skill", "binding_class", "when", "then"],
       "additionalProperties": false,
-      "description": "Targets exactly one of `skill` or `tool` via the oneOf constraint below.",
+      "description": "A rule targeting a specific skill. Carries optional summary + keywords so registries can index the *substance* of the rule, not just its expression source.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Stable identifier; referenced by `ref` in verdicts.",
           "pattern": "^[a-z][a-z0-9_-]*$"
         },
+        "summary": {
+          "type": "string",
+          "description": "BINDING (when present). Human-readable one-liner describing what the rule does in business terms. Renders as the rule's headline; indexed by the registry. Highly recommended.",
+          "maxLength": 240
+        },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 48 },
+          "uniqueItems": true,
+          "maxItems": 16,
+          "description": "Free-form indexing keywords (e.g. ['purchase_order', 'auto_accept', 'threshold_10000']). Registry indexes alongside the contract-level tags."
+        },
         "description": { "type": "string" },
         "skill": {
           "type": "string",
-          "description": "Skill id this rule applies to. Mutually exclusive with `tool`."
-        },
-        "tool": {
-          "type": "string",
-          "description": "Tool id this rule applies to. Mutually exclusive with `skill`. The expression language exposes `tool.<field>` references against the tool's input_schema."
+          "description": "Skill id this rule applies to."
         },
         "field": {
           "type": "string",
@@ -415,15 +367,11 @@
         },
         "when": {
           "type": "string",
-          "description": "Expression evaluated against the input (or tool args). Tiny safe expression language: comparisons, arithmetic, logical, field refs, abs/min/max/len, regex match."
+          "description": "Expression evaluated against the input. Tiny safe expression language: comparisons, arithmetic, logical, field refs, abs/min/max/len, regex match."
         },
         "then": { "$ref": "#/$defs/RuleOutcome" },
         "else": { "$ref": "#/$defs/RuleOutcome" }
-      },
-      "oneOf": [
-        { "required": ["skill"], "not": { "required": ["tool"] } },
-        { "required": ["tool"], "not": { "required": ["skill"] } }
-      ]
+      }
     },
 
     "RuleOutcome": {
@@ -442,11 +390,22 @@
       "type": "object",
       "required": ["id", "when", "code"],
       "additionalProperties": false,
-      "description": "Conditions that reject on sight. Always PROMISE — they must be deterministic by construction.",
+      "description": "Conditions that reject on sight. Always PROMISE.",
       "properties": {
         "id": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "summary": {
+          "type": "string",
+          "description": "BINDING (when present). One-liner describing the failure in business terms.",
+          "maxLength": 240
+        },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 48 },
+          "uniqueItems": true,
+          "maxItems": 16
         },
         "description": { "type": "string" },
         "skill": {
@@ -536,6 +495,131 @@
         },
         "reason": { "type": "string" }
       }
+    },
+
+    "Industry": {
+      "description": "Closed v0.4 industry vocabulary. Adding values requires an ADR. See docs/taxonomies.md.",
+      "enum": [
+        "logistics",
+        "procurement",
+        "fintech",
+        "healthcare",
+        "retail",
+        "manufacturing",
+        "legal",
+        "hr",
+        "customer_support",
+        "dev_tools",
+        "data_analytics",
+        "marketing",
+        "real_estate",
+        "education",
+        "energy",
+        "government",
+        "media",
+        "other"
+      ]
+    },
+
+    "Capability": {
+      "description": "Closed v0.4 capability vocabulary. Describes what kind of work the agent does, irrespective of industry.",
+      "enum": [
+        "transaction_processing",
+        "lookup",
+        "scheduling",
+        "notification",
+        "data_extraction",
+        "data_enrichment",
+        "decision_support",
+        "negotiation",
+        "workflow_orchestration",
+        "content_generation",
+        "monitoring",
+        "translation",
+        "summarization",
+        "other"
+      ]
+    },
+
+    "RegionCode": {
+      "description": "Coarse geographic + regulatory region. Closed vocabulary; finer-grained sub-regions can live in tags.",
+      "enum": [
+        "us-east",
+        "us-west",
+        "us-central",
+        "ca",
+        "eu-west",
+        "eu-central",
+        "uk",
+        "apac-east",
+        "apac-southeast",
+        "apac-south",
+        "anz",
+        "latam",
+        "mea",
+        "global"
+      ]
+    },
+
+    "ComplianceStandard": {
+      "description": "Closed v0.4 set of recognised certification standards.",
+      "enum": [
+        "SOC2_TYPE_1",
+        "SOC2_TYPE_2",
+        "ISO_27001",
+        "ISO_27701",
+        "HIPAA",
+        "HITRUST",
+        "GDPR",
+        "CCPA",
+        "PCI_DSS",
+        "FedRAMP_MODERATE",
+        "FedRAMP_HIGH",
+        "EU_AI_ACT"
+      ]
+    },
+
+    "AuthMethod": {
+      "description": "Closed v0.4 set of authentication methods.",
+      "enum": [
+        "none",
+        "api_key",
+        "oauth2_client_credentials",
+        "oauth2_auth_code",
+        "mtls",
+        "signed_jwt",
+        "webauthn"
+      ]
+    },
+
+    "PricingUnit": {
+      "description": "Closed v0.4 set of billing units.",
+      "enum": [
+        "per_call",
+        "per_skill_invocation",
+        "per_token",
+        "per_month",
+        "per_seat_per_month",
+        "per_year"
+      ]
+    },
+
+    "DataClass": {
+      "description": "Closed v0.4 set of data sensitivity classes the agent ingests or produces.",
+      "enum": [
+        "pii",
+        "phi",
+        "payment_card",
+        "financial",
+        "health",
+        "government_id",
+        "biometric",
+        "location",
+        "behavioral",
+        "credentials",
+        "business_confidential",
+        "public"
+      ]
     },
 
     "StatusCode": {

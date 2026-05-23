@@ -1,10 +1,20 @@
-// Verify the live GitHub Pages deployment:
-// 1. Every URL surfaced on the site returns 200
-// 2. Every external link resolves (no 404s)
-// 3. The playground bundle + inlined contract are present
+// Verify the live GitHub Pages deployment.
+//
+// v0.4 site layout:
+//   /                                                          product home page (NOT a contract landing)
+//   /examples/acme-supplier-agent/                             per-contract landing
+//   /examples/acme-supplier-agent/.well-known/airlock.yaml     machine spec
+//   /examples/acme-supplier-agent/.well-known/airlock/         rendered docs
 
 const BASE = "https://okohedeki.github.io/airlock";
-const PATHS = ["/", "/.well-known/airlock.yaml", "/.well-known/airlock/", "/.well-known/airlock/llms.txt"];
+const DEMO = "/examples/acme-supplier-agent";
+const PATHS = [
+  "/",
+  `${DEMO}/`,
+  `${DEMO}/.well-known/airlock.yaml`,
+  `${DEMO}/.well-known/airlock/`,
+  `${DEMO}/.well-known/airlock/llms.txt`,
+];
 
 async function status(url) {
   try {
@@ -26,38 +36,49 @@ for (const path of PATHS) {
 }
 
 console.log();
-console.log("--- Every external link on the live docs page ---");
-const docs = await fetch(`${BASE}/.well-known/airlock/`).then((r) => r.text());
-const docLinks = [...docs.matchAll(/href="(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
-const docUnique = [...new Set(docLinks)].sort();
-for (const link of docUnique) {
-  const code = await status(link);
-  console.log(`  ${code}  ${link}`);
-  if (typeof code === "number" && code >= 400) failures.push(link);
+console.log("--- Home page content checks (must be the product page, not a contract page) ---");
+const home = await fetch(`${BASE}/`).then((r) => r.text());
+const homeChecks = [
+  { label: "product home headline present", ok: home.includes("Make your business agent discoverable") },
+  { label: "links to the sample contract", ok: home.includes("examples/acme-supplier-agent") },
+  { label: "does NOT inline a contract (home is not a contract page)", ok: !home.includes("__AIRLOCK_CONTRACT__") },
+];
+for (const c of homeChecks) {
+  console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
+  if (!c.ok) failures.push(`home content: ${c.label}`);
 }
 
 console.log();
-console.log("--- Every external link on the landing page ---");
-const landing = await fetch(`${BASE}/`).then((r) => r.text());
-const landLinks = [...landing.matchAll(/href="(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
-const landUnique = [...new Set(landLinks)].sort();
-for (const link of landUnique) {
-  const code = await status(link);
-  console.log(`  ${code}  ${link}`);
-  if (typeof code === "number" && code >= 400) failures.push(link);
+console.log("--- Demo per-contract page checks ---");
+const demoHtml = await fetch(`${BASE}${DEMO}/.well-known/airlock/`).then((r) => r.text());
+const demoChecks = [
+  { label: "playground bundle inlined", ok: demoHtml.includes("__AIRLOCK_CONTRACT__") && demoHtml.includes("window.airlock") },
+  { label: "v0.4 category section rendered", ok: demoHtml.toLowerCase().includes("category") && demoHtml.includes("procurement") },
+  { label: "compliance entries rendered", ok: demoHtml.includes("SOC2_TYPE_2") },
+  { label: "try-it form present", ok: demoHtml.includes("try-it") },
+];
+for (const c of demoChecks) {
+  console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
+  if (!c.ok) failures.push(`demo content: ${c.label}`);
 }
 
 console.log();
-console.log("--- Playground assets on the live docs page ---");
-console.log(`  page bytes: ${docs.length}`);
-console.log(`  contains __AIRLOCK_CONTRACT__: ${docs.includes("__AIRLOCK_CONTRACT__")}`);
-console.log(`  contains window.airlock: ${docs.includes("window.airlock")}`);
-console.log(`  contains try-it form: ${docs.includes("try-it")}`);
+console.log("--- llms.txt content checks ---");
+const llms = await fetch(`${BASE}${DEMO}/.well-known/airlock/llms.txt`).then((r) => r.text());
+const llmsChecks = [
+  { label: "Category section present", ok: llms.includes("## Category (binding)") },
+  { label: "Compliance section present", ok: llms.includes("## Compliance (binding)") },
+  { label: "Skills section present", ok: llms.includes("## Skills (binding)") },
+];
+for (const c of llmsChecks) {
+  console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
+  if (!c.ok) failures.push(`llms content: ${c.label}`);
+}
 
 console.log();
 if (failures.length > 0) {
-  console.error(`✗ ${failures.length} URL(s) failed:`);
+  console.error(`✗ ${failures.length} check(s) failed:`);
   for (const f of failures) console.error(`    ${f}`);
   process.exit(1);
 }
-console.log("✓ All URLs return 200 and playground is wired up.");
+console.log("✓ Live site is a v0.4 product home page with the demo contract under /examples/acme-supplier-agent/.");

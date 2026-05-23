@@ -2,159 +2,127 @@ import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import { validateContractFile } from "../src/validate/index.js";
 import { preflight } from "../src/preflight/index.js";
-import {
-  evaluateRequest,
-  evaluateToolCall,
-  prepareContract,
-} from "../src/pipeline/index.js";
+import { evaluateRequest, prepareContract } from "../src/pipeline/index.js";
 import type { AirlockContract } from "../src/validate/types.js";
 
-const HARNESS = resolve(__dirname, "..", "examples", "agent-harness.airlock.yaml");
+const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock.yaml");
 
-function loadHarness(): AirlockContract {
-  const result = validateContractFile(HARNESS);
+function loadSupplier(): AirlockContract {
+  const result = validateContractFile(SUPPLIER);
   if (!result.ok || !result.contract) {
-    throw new Error(`harness example is not valid: ${JSON.stringify(result.issues, null, 2)}`);
+    throw new Error(`supplier-agent example is not valid: ${JSON.stringify(result.issues, null, 2)}`);
   }
   return result.contract;
 }
 
 describe("pipeline — skill calls, happy path", () => {
-  it("ACCEPTED_BY_RULE for a workspace-relative analyze_code (PROMISE)", () => {
-    const contract = loadHarness();
+  it("ACCEPTED_BY_RULE for a small date change (PROMISE)", () => {
+    const contract = loadSupplier();
     const v = preflight(contract, {
-      skill: "analyze_code",
-      input: { path: "src/expr/index.ts" },
+      skill: "confirm_po",
+      input: {
+        reference: "PO-1234",
+        entity: "known-supplier-1",
+        amount: 100,
+        delivery_date_change_days: -2,
+      },
     });
     expect(v.code).toBe("ACCEPTED_BY_RULE");
     expect(v.binding).toBe("PROMISE");
-    expect(v.ref).toBe("analyze-within-workspace");
+    expect(v.ref).toBe("accept-small-date-changes");
     expect(v.action).toBe("UNILATERAL_COMMIT");
   });
 
-  it("OUT_OF_SCOPE (else branch) for an absolute analyze_code path", () => {
-    const contract = loadHarness();
+  it("HUMAN_REVIEW_LIKELY for a large date change (ESTIMATE)", () => {
+    const contract = loadSupplier();
     const v = preflight(contract, {
-      skill: "analyze_code",
-      input: { path: "/etc/passwd" },
+      skill: "confirm_po",
+      input: {
+        reference: "PO-1234",
+        entity: "known-supplier-1",
+        amount: 100,
+        delivery_date_change_days: 14,
+      },
     });
-    expect(v.code).toBe("OUT_OF_SCOPE");
-    expect(v.binding).toBe("PROMISE");
-    expect(v.ref).toBe("analyze-within-workspace");
+    expect(v.code).toBe("HUMAN_REVIEW_LIKELY");
+    expect(v.binding).toBe("ESTIMATE");
+    expect(v.ref).toBe("review-large-date-changes");
   });
 
-  it("DEPENDS_ON_STATE for run_command (judgment)", () => {
-    const contract = loadHarness();
+  it("COUNTER_OFFER_LIKELY for a large quantity change (ESTIMATE)", () => {
+    const contract = loadSupplier();
     const v = preflight(contract, {
-      skill: "run_command",
-      input: { command: "echo hi" },
+      skill: "confirm_po",
+      input: {
+        reference: "PO-1234",
+        entity: "known-supplier-1",
+        amount: 100,
+        quantity_change_pct: 20,
+      },
     });
-    expect(v.code).toBe("DEPENDS_ON_STATE");
+    expect(v.code).toBe("COUNTER_OFFER_LIKELY");
     expect(v.binding).toBe("ESTIMATE");
-    expect(v.ref).toBe("run-command-judgment");
+    expect(v.action).toBe("COUNTER_OFFER");
   });
 });
 
-describe("pipeline — instant_failures and protocol errors", () => {
-  it("MISSING_INPUT when schema requires a field that's absent", () => {
-    const contract = loadHarness();
+describe("pipeline — instant_failures", () => {
+  it("OUT_OF_SCOPE for an unknown entity (PROMISE)", () => {
+    const contract = loadSupplier();
     const v = preflight(contract, {
-      skill: "analyze_code",
-      input: {},
+      skill: "confirm_po",
+      input: { reference: "PO-1234", entity: "random-vendor", amount: 100 },
+    });
+    expect(v.code).toBe("OUT_OF_SCOPE");
+    expect(v.binding).toBe("PROMISE");
+    expect(v.ref).toBe("unknown-entity");
+  });
+
+  it("MISSING_INPUT when schema requires a field that's absent", () => {
+    const contract = loadSupplier();
+    const v = preflight(contract, {
+      skill: "confirm_po",
+      input: { entity: "known-supplier-1", amount: 100 },
     });
     expect(v.code).toBe("MISSING_INPUT");
     expect(v.binding).toBe("PROMISE");
   });
 
   it("WRONG_AGENT for an unknown skill", () => {
-    const contract = loadHarness();
-    const v = preflight(contract, {
-      skill: "telepathy",
-      input: {},
-    });
+    const contract = loadSupplier();
+    const v = preflight(contract, { skill: "telepathy", input: {} });
     expect(v.code).toBe("WRONG_AGENT");
     expect(v.binding).toBe("PROMISE");
-  });
-});
-
-describe("pipeline — tool calls (v0.3)", () => {
-  it("REFUSED_BY_POLICY for `rm -rf` via the bash tool (PROMISE)", () => {
-    const contract = loadHarness();
-    const prepared = prepareContract(contract);
-    const v = evaluateToolCall(prepared, {
-      tool: "bash",
-      input: { command: "rm -rf /tmp/foo" },
-    });
-    expect(v.code).toBe("REFUSED_BY_POLICY");
-    expect(v.binding).toBe("PROMISE");
-    expect(v.ref).toBe("bash-refuse-rm-rf");
-  });
-
-  it("REFUSED_BY_POLICY for a sudo command via the bash tool (PROMISE)", () => {
-    const contract = loadHarness();
-    const prepared = prepareContract(contract);
-    const v = evaluateToolCall(prepared, {
-      tool: "bash",
-      input: { command: "sudo apt update" },
-    });
-    expect(v.code).toBe("REFUSED_BY_POLICY");
-    expect(v.binding).toBe("PROMISE");
-    expect(v.ref).toBe("bash-refuse-sudo");
-  });
-
-  it("WRONG_AGENT for an unknown tool", () => {
-    const contract = loadHarness();
-    const prepared = prepareContract(contract);
-    const v = evaluateToolCall(prepared, {
-      tool: "telepathy",
-      input: {},
-    });
-    expect(v.code).toBe("WRONG_AGENT");
-    expect(v.binding).toBe("PROMISE");
-  });
-
-  it("default ACCEPTED_LIKELY for a tool call no rule refuses", () => {
-    const contract = loadHarness();
-    const prepared = prepareContract(contract);
-    const v = evaluateToolCall(prepared, {
-      tool: "bash",
-      input: { command: "echo hi" },
-    });
-    expect(v.code).toBe("ACCEPTED_LIKELY");
-    expect(v.binding).toBe("ESTIMATE");
-  });
-
-  it("does not fire tool-targeted rules during skill evaluation", () => {
-    const contract = loadHarness();
-    const prepared = prepareContract(contract);
-    // run_command receives 'rm -rf' as a string but the bash-* rules are
-    // scoped to the bash tool, not the run_command skill. Skill evaluation
-    // should hit the judgment rule, not the tool refusals.
-    const v = evaluateRequest(prepared, {
-      skill: "run_command",
-      input: { command: "rm -rf /tmp/foo" },
-    });
-    expect(v.code).toBe("DEPENDS_ON_STATE");
   });
 });
 
 describe("pipeline — caching", () => {
   it("prepareContract caches expression ASTs across calls", () => {
-    const contract = loadHarness();
+    const contract = loadSupplier();
     const prepared = prepareContract(contract);
     expect(prepared.exprCache.size).toBe(0);
-
     evaluateRequest(prepared, {
-      skill: "analyze_code",
-      input: { path: "a.ts" },
+      skill: "confirm_po",
+      input: { reference: "PO-1", entity: "known-supplier-1", amount: 1 },
     });
     const sizeAfterFirst = prepared.exprCache.size;
     expect(sizeAfterFirst).toBeGreaterThan(0);
-
     evaluateRequest(prepared, {
-      skill: "analyze_code",
-      input: { path: "b.ts" },
+      skill: "confirm_po",
+      input: { reference: "PO-2", entity: "known-supplier-1", amount: 2 },
     });
     expect(prepared.exprCache.size).toBe(sizeAfterFirst);
+  });
+});
+
+describe("pipeline — rule summary surfaces in verdict reason", () => {
+  it("uses rule.summary when outcome.message is absent", () => {
+    const contract = loadSupplier();
+    const v = preflight(contract, {
+      skill: "confirm_po",
+      input: { reference: "PO-9", entity: "known-supplier-1", amount: 100, delivery_date_change_days: 14 },
+    });
+    // review-large-date-changes has no `message` on outcome → reason falls back to summary.
+    expect(v.reason).toContain("human reviewer");
   });
 });

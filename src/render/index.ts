@@ -7,3 +7,5 @@ export {
   type BuildOptions,
   type BuildResult,
 } from "./bundle.js";
+export { buildSite, type BuildSiteOptions, type BuildSiteResult } from "./site.js";
+export { renderHome, type RenderHomeOptions } from "../home/index.js";

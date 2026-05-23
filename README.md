@@ -1,19 +1,63 @@
 # Airlock
 
-The disclosure manifest format for AI-agent harnesses. A publisher writes one contract describing **everything an external agent can know about their agent** — skills it exposes, tools it reaches for, hooks that fire around its work, permissions it operates under, guardrails it refuses to cross — then renders that file as a machine spec + human-readable docs + LLM-readable docs that other agents integrate against without prior coordination.
+The contract format for **self-deployed business agents** to be discoverable and integrable without prior coordination.
 
-**v1 is Layer 1 (the schema) + Layer 2 (open-source tooling).** It is not a hosted gateway or a runtime — see [`docs/adr/0001-airlock-is-docs-not-runtime.md`](./docs/adr/0001-airlock-is-docs-not-runtime.md). The reframe in v0.3 is described in [`docs/adr/0004-harness-fields-are-informational.md`](./docs/adr/0004-harness-fields-are-informational.md).
+A business publishes one file describing what their agent does, who it serves, and on what terms. Other businesses' AI agents fetch that file, pre-filter on category / region / compliance / pricing, and integrate.
 
-## What's new in v0.3
+**v1 is Layer 1 (the schema) + Layer 2 (open-source tooling).** It is not a hosted gateway or a runtime — see [`docs/adr/0001`](./docs/adr/0001-airlock-is-docs-not-runtime.md). v0.4 anchors the schema around the buyer's RFI questions; see [`docs/adr/0006`](./docs/adr/0006-b2b-indexable-capability-format.md).
 
-The schema gains five binding capability blocks and four informational disclosure blocks:
+## What a contract looks like
 
-- **Binding** (load-bearing promises consumers may rely on): `skills`, `tools`, `hooks`, `permissions`, `guardrails`, plus the existing `authority` / `instant_failures` / `actions` / `sla`.
-- **Informational** (deployment facts; may change in minor versions per ADR 0004): `agent.harness` (framework, model, runtime, limits), `mcp_servers`, `secrets`, `delegates_to`.
+```yaml
+airlock: "0.4"
 
-The sandbox now falls back to a **deterministic schema-derived faker** when no authored example matches (ADR 0005), so consumers always get a schema-valid response body — same input always produces the same output.
+agent:
+  name: acme-supplier-agent
+  version: 1.0.0
+  description: Confirms purchase orders, accepts cancellations, answers stock queries.
 
-The flagship example is now [`examples/agent-harness.airlock.yaml`](./examples/agent-harness.airlock.yaml): a Claude-Code-style coding agent published as an Airlock contract.
+category:
+  industry: procurement
+  capability: transaction_processing
+
+region:
+  data_residency: [us-east, eu-west]
+  serves_regions: [us-east, eu-west, uk]
+
+compliance:
+  - { standard: SOC2_TYPE_2, status: certified }
+  - { standard: GDPR, status: self_attested }
+
+auth_model:
+  methods: [oauth2_client_credentials, mtls]
+  enrollment: enterprise_only
+
+pricing:
+  model: enterprise
+  price_url: https://example.com/pricing
+
+permissions:
+  pii: minimal
+  data_classes: [business_confidential, financial]
+  retention: 7y
+
+skills:
+  - id: confirm_po
+    input:  { $ref: "#/schemas/PurchaseOrder" }
+    output: { $ref: "#/schemas/Confirmation" }
+    examples: [ ... ]
+
+authority:
+  - id: accept-small-date-changes
+    summary: Auto-accept delivery date adjustments within ±3 days.
+    keywords: [purchase_order, auto_accept, delivery_date]
+    skill: confirm_po
+    binding_class: deterministic
+    when: "abs(input.delivery_date_change_days) <= 3"
+    then: { code: ACCEPTED_BY_RULE, action: UNILATERAL_COMMIT }
+```
+
+A consuming business's agent reads this and knows, in one fetch: *yes this is procurement, yes it serves the EU, yes it's SOC 2 Type 2 certified, yes it auto-accepts small date changes — I can plan my integration.*
 
 ## End-to-end demo
 
@@ -22,120 +66,103 @@ git clone <this-repo> && cd AirlockAI
 npm install
 npm run build
 
-# 1. Validate the contract (fail fast on schema or lint issues)
-node dist/cli.js validate examples/agent-harness.airlock.yaml
+# 1. Validate
+node dist/cli.js validate examples/supplier-agent.airlock.yaml
 
-# 2. Run the local sandbox agent
-node dist/cli.js sandbox examples/agent-harness.airlock.yaml --port 8080
-#   → http://127.0.0.1:8080
-#   → POST /skills/<skill_id>
-#   → POST /preflight/<skill_id>
-#   → POST /tools/<tool_id>            (v0.3 — simulate a tool invocation)
-#   → POST /preflight-tool/<tool_id>   (v0.3 — tool-call verdict only)
-#   → GET  /.well-known/airlock.yaml
+# 2. Run the sandbox
+node dist/cli.js sandbox examples/supplier-agent.airlock.yaml --port 8080
+#   POST /skills/<skill_id>           — real call (synthesized response)
+#   POST /preflight/<skill_id>        — verdict only, no side effect
+#   GET  /.well-known/airlock.yaml    — the contract
 ```
 
-From a second terminal — talk to the local agent the way a consuming agent would:
+From a second terminal:
 
 ```sh
-# A skill call that fires a deterministic rule → PROMISE verdict, replayed example body
-curl -i -X POST http://127.0.0.1:8080/skills/analyze_code \
+# A deterministic-rule fire → PROMISE verdict, replayed authored example
+curl -i -X POST http://127.0.0.1:8080/skills/confirm_po \
   -H 'content-type: application/json' \
-  -d '{"path":"src/expr/index.ts"}'
+  -d '{"reference":"PO-1234","entity":"known-supplier-1","amount":100,"delivery_date_change_days":-2}'
 # HTTP 200
 # X-Airlock-Detail-Source: example
-# { "code":"ACCEPTED_BY_RULE", "binding":"PROMISE", "ref":"analyze-within-workspace",
-#   "action":"UNILATERAL_COMMIT",
-#   "detail":{ "path":"src/expr/index.ts", "summary":"...", "risks":[], "line_count":65 } }
+# { "code":"ACCEPTED_BY_RULE", "binding":"PROMISE", "ref":"accept-small-date-changes",
+#   "detail":{ "confirmation_id":"C-9001", "confirmed_date":"2026-05-30" } }
 
-# A skill call with no matching example → ESTIMATE verdict, schema-derived body (deterministic)
-curl -i -X POST http://127.0.0.1:8080/skills/run_command \
+# A skill with no matching example → ESTIMATE + deterministic schema-derived body
+curl -i -X POST http://127.0.0.1:8080/skills/query_inventory \
   -H 'content-type: application/json' \
-  -d '{"command":"echo hi"}'
-# HTTP 202
+  -d '{"sku":"SKU-42"}'
+# HTTP 200
 # X-Airlock-Detail-Source: synthesized
-# { "code":"DEPENDS_ON_STATE", "binding":"ESTIMATE", ..., "detail":{ "exit_code":..., "stdout":"sample-..." } }
-
-# A tool-call pre-flight that hits a deterministic refusal → PROMISE
-curl -i -X POST http://127.0.0.1:8080/preflight-tool/bash \
-  -H 'content-type: application/json' \
-  -d '{"command":"rm -rf /tmp/foo"}'
-# HTTP 400
-# { "code":"REFUSED_BY_POLICY", "binding":"PROMISE", "ref":"bash-refuse-rm-rf" }
+# { "code":"ACCEPTED_LIKELY", "binding":"ESTIMATE",
+#   "detail":{ "sku":"SKU-42", "on_hand":..., "reserved":..., "warehouse":"..." } }
 ```
 
-Build the static bundle for GitHub Pages:
+`X-Airlock-Detail-Source: synthesized` means the publisher hadn't authored an example for this verdict — the sandbox walked the output JSON Schema deterministically (see [ADR 0005](./docs/adr/0005-sandbox-falls-back-to-schema-derived-responses.md)). Same input always produces the same body.
+
+Build the static bundle for hosting:
 
 ```sh
-node dist/cli.js build examples/agent-harness.airlock.yaml --out ./dist-pages
-ls dist-pages
-#   .well-known/airlock.yaml          ← machine spec
-#   .well-known/airlock/index.html    ← rendered human docs (sections for tools/hooks/permissions/guardrails)
-#   .well-known/airlock/llms.txt      ← LLM-friendly bundle
-#   index.html                        ← landing page
-#   .nojekyll                         ← so GitHub serves .well-known/
+node dist/cli.js build examples/supplier-agent.airlock.yaml --out ./dist-pages
 ```
 
-Confirm the sandbox is conformant with the contract:
+Verify the sandbox is honest with the contract:
 
 ```sh
-node dist/cli.js check examples/agent-harness.airlock.yaml --url http://127.0.0.1:8080
-# Total: 2   Passed: 2   Failed: 0   Skipped: 0   OK
+node dist/cli.js check examples/supplier-agent.airlock.yaml --url http://127.0.0.1:8080
+# Total: 2  Passed: 2  Failed: 0  OK
 ```
 
-A green `check` is the "contract is honest right now" attestation. Conformance only asserts binding blocks; informational blocks (harness, mcp_servers, secrets, delegates_to) are not audited per ADR 0004.
+Conformance asserts PROMISE codes only (per ADR 0002).
 
-## Publishing to GitHub Pages
+## Registry indexing
 
-`.github/workflows/pages.yml` is wired up. On push to `main`, it runs `npm test`, builds the static bundle from `examples/agent-harness.airlock.yaml`, and deploys to GitHub Pages.
+A business publishes their contract, then emits a registry entry that another business's agent can find:
 
-1. Settings → Pages → Source: **GitHub Actions**
-2. Push to `main` (or trigger the workflow manually)
-3. Visit `https://<user>.github.io/<repo>/` for the landing page
-4. Visit `https://<user>.github.io/<repo>/.well-known/airlock.yaml` for the machine spec
+```sh
+node dist/cli.js register-entry --contract examples/supplier-agent.airlock.yaml \
+    --url https://example.com/.well-known/airlock.yaml
+# → JSON ready to PR into github.com/Okohedeki/airlock-registry
+```
 
-Random agents can be pointed at that URL — they fetch `llms.txt` to understand the contract and hit your sandbox (or your real backend) to make calls.
+A consumer searches:
 
-## CLI surface (v1)
+```sh
+node dist/cli.js search --industry procurement --region eu-west --compliance SOC2_TYPE_2
+# → contracts matching the filter
+```
+
+The registry is the existing v1 GitHub-list plan (single JSON file in a public repo, no accounts). v0.4 ships the entry-builder + the search command; the registry repo itself is the next milestone.
+
+## CLI surface
 
 ```
 airlock validate <contract>                                # JSON Schema + semantic lint
 airlock preflight <contract> --skill <id> --input <json>   # skill-call verdict, no side effect
-airlock sandbox <contract> --port 8080                     # local HTTP agent (skills + tools)
+airlock sandbox <contract> --port 8080                     # local HTTP agent
 airlock check <contract> --url <live-agent-url>            # conformance
-airlock build <contract> --out ./dist                      # static bundle for GitHub Pages
+airlock build <contract> --out ./dist                      # static bundle for a single contract
+airlock register-entry --contract <path> --url <url>       # emit a registry index entry
+airlock search [filters]                                   # query the registry
 ```
 
 ## Documentation
 
-- [`CONTEXT.md`](./CONTEXT.md) — canonical glossary (with v0.3 terms: harness, tool, hook, permission, guardrail, MCP server, secret, delegation)
-- [`docs/contract-schema.md`](./docs/contract-schema.md) — narrative guide to the v0.3 contract schema
-- [`docs/migration-v01-to-v03.md`](./docs/migration-v01-to-v03.md) — migrating a v0.1 contract
+- [`CONTEXT.md`](./CONTEXT.md) — canonical glossary
+- [`docs/contract-schema.md`](./docs/contract-schema.md) — narrative guide to the v0.4 schema
+- [`docs/taxonomies.md`](./docs/taxonomies.md) — the closed vocabularies the schema enforces
+- [`docs/migration-v03-to-v04.md`](./docs/migration-v03-to-v04.md) — migrating a v0.3 contract
 - [`schema/airlock.schema.json`](./schema/airlock.schema.json) — JSON Schema (source of truth)
-- [`docs/adr/`](./docs/adr/) — architectural decisions (0001–0005)
-- [`docs/airlock-deploy-sister-project.md`](./docs/airlock-deploy-sister-project.md) — placeholder for the deploy sister project
+- [`docs/adr/`](./docs/adr/) — architectural decisions (0001–0006)
 
 ## Development
 
 ```sh
 npm install
 npm run typecheck
-npm test                # ~92 tests across 7 files
+npm test
 npm run build
 ```
-
-## Build order (where we are)
-
-1. ✅ Contract schema + validator (v0.3 — harness reframe)
-2. ✅ Behavior / expression engine
-3. ✅ Sandbox engine over HTTP (skills + tools + schema-derived faker)
-4. ✅ Pre-flight checker (skill + tool)
-5. ⬜ Codegen (typed handler stubs)
-6. ✅ Renderer (HTML portal + `llms.txt` + landing page; all v0.3 sections)
-7. ✅ Conformance runner
-8. ⬜ Discovery + GitHub-list registry
-9. ⬜ A2A adapter
-10. ⬜ Fault/drift injection
 
 ## License
 

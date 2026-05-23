@@ -1,25 +1,54 @@
-# Harness fields are informational; only capability fields carry binding promises
+# Binding vs informational blocks
 
-**Status:** accepted
+**Status:** accepted (revised in v0.4 — see history below)
 
-v0.3 expands a contract from "what skills a service accepts" to "what an AI harness can and can't do." The new blocks split cleanly into two categories. **Binding** blocks make load-bearing promises a consumer programs against: `skills`, `tools`, `permissions`, `guardrails`, `authority`, `instant_failures`, `actions`. **Informational** blocks describe the concrete deployment serving the contract: `agent.harness` (framework, model, runtime, limits), `mcp_servers`, `secrets`, `delegates_to`. Major version bumps are required when binding blocks change incompatibly; informational blocks may change in minor versions. The conformance runner asserts binding blocks only.
+A contract carries two categories of fields. **Binding** blocks make load-bearing promises a consumer programs against; the conformance runner asserts them. **Informational** blocks describe deployment facts a consumer may want for blast-radius reasoning but cannot rely on; they may change in minor versions. The validator warns when a major version bump touches only informational fields and when a minor bump touches a binding field.
+
+Current (v0.4) categorisation:
+
+| Binding | Informational |
+|---|---|
+| `skills` | `pricing.price_url` |
+| `category` *(industry, capability, subcategory)* | *(everything else under `agent` aside from `name`/`version` is descriptive but pinned to the contract version)* |
+| `region` *(data_residency, serves_regions)* | |
+| `compliance` *(certifications and attestations)* | |
+| `auth_model` *(methods, enrollment)* | |
+| `pricing.model` and `pricing.unit` | |
+| `permissions` *(data-access disclosure)* | |
+| `guardrails` *(refused topics/actions, required_authentication)* | |
+| `authority` rules + `summary` + `keywords` | |
+| `instant_failures` + `summary` + `keywords` | |
+| `actions` | |
+| `sla` | |
+| `lifecycle` | |
+| `deprecation` | |
+| `tags` | |
 
 ## Why
 
-Without this line, the schema collapses into incoherence the moment a publisher swaps Claude Code for a custom harness with the same exposed skills. If `agent.harness.framework` is binding, every harness swap becomes a major version bump consumers must re-integrate against — contracts become churny and the version number stops meaning anything. If `agent.harness` is informational, then it must be acknowledged in the schema as documentation rather than commitment, otherwise readers (human and AI) will reasonably treat every field they see as a promise. The same tension applies to MCP server choice (an implementation detail of how tools are loaded) and to declared secrets (a disclosure for blast-radius reasoning, not a promise about what the agent will *do* with them).
+Without this line the schema collapses into incoherence. If pricing's `price_url` is binding, every commercial-terms revision becomes a public breaking change. If pricing's `model` is informational, a buyer can't trust the contract enough to pre-filter on "give me subscription-only suppliers." The split lets the contract make the promises that drive integration and stay quiet about the facts that drive operations.
 
-The deeper principle: Airlock contracts are *capability surfaces*, not *deployment manifests*. A capability surface describes what the consumer can rely on. A deployment manifest describes how the publisher chose to implement it. Mixing them silently produces the worst of both — over-coupled contracts that pretend to be neutral.
+The deeper principle: Airlock contracts are **buyer-facing capability surfaces**. Anything a buyer would put in an RFI belongs in the binding spine. Anything that's deployment- or commercial-volatile belongs in the informational tail or out of the contract entirely.
 
 ## Considered options
 
-- **Everything binding (rejected).** Simple to explain. Makes contracts useless: any internal change becomes a public breaking change.
-- **Everything informational (rejected).** Frees the publisher entirely. Destroys the promise model that makes pre-flight and conformance worth anything.
-- **Two-category split (accepted).** Each new block in v0.3 is explicitly tagged as binding or informational in the schema doc. The conformance runner reads only binding blocks. The validator lints major bumps that touch only informational fields as suspicious.
+- **Everything binding** (rejected). Simple. Makes contracts useless: every revision is breaking.
+- **Everything informational** (rejected). Frees the publisher. Destroys the promise model that makes pre-flight, conformance, and indexing worth anything.
+- **Two-category split** (accepted). Each block in the schema is tagged binding or informational. Conformance reads only the binding set. The validator lints version bumps against the diff.
 
 ## Consequences
 
-- Schema documentation for every block must state its category. `docs/contract-schema.md` carries a binding/informational badge per section. No exceptions.
-- The conformance runner ignores `agent.harness`, `mcp_servers`, `secrets`, `delegates_to`. Drift in those fields is not a violation.
-- Publishers can move from one model or framework to another without a major bump as long as the binding surface is unchanged. The validator warns if a major bump's diff is informational-only ("are you sure?") and warns if a minor bump touches a binding field ("you likely owe a major").
-- The renderer visually separates binding from informational sections so consumers can tell at a glance which fields they may rely on.
-- Future blocks added in v0.4+ must be classified at proposal time. Anything ambiguous (e.g., a `safety` block of self-attested defenses) defaults to informational unless the proposal demonstrates a conformance assertion that exercises it.
+- Every section in `docs/contract-schema.md` carries a binding/informational badge. No exceptions.
+- The conformance runner ignores informational fields. Drift in those is not a violation.
+- The renderer visually separates the two categories.
+- Future blocks must be classified at proposal time. Ambiguous proposals default to informational unless the author demonstrates a conformance assertion that exercises the field.
+
+## History
+
+### v0.3 (superseded)
+
+The original v0.3 categorisation listed `tools`, `hooks`, `permissions`, `guardrails` as binding and `agent.harness`, `mcp_servers`, `secrets`, `delegates_to` as informational. This decision was right in its abstract structure but wrong in its concrete field list — the binding blocks targeted developers (Claude-Code-style harness primitives) rather than business buyers. See ADR 0006 for the reframe; the binding-vs-informational distinction itself stands.
+
+### v0.4 (current)
+
+`tools`, `hooks`, `mcp_servers`, `secrets`, `delegates_to`, and `agent.harness` were removed from the schema entirely. The binding spine was repopulated with B2B fields (`category`, `region`, `compliance`, `auth_model`, `pricing`), `permissions` was reshaped from developer-permission-strings to data-access disclosure, and `guardrails` adopted curated topic/action vocabularies so registry indexers can categorise refusals.
