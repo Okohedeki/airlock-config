@@ -14,7 +14,7 @@ on:
     inputs:
       contract:
         description: "Path to the contract YAML to publish"
-        default: "examples/procurement.airlock.yaml"
+        default: "examples/agent-harness.airlock.yaml"
         required: true
 
 permissions:
@@ -51,7 +51,7 @@ jobs:
 
       - name: Build static bundle
         env:
-          CONTRACT: ${{ github.event.inputs.contract || 'examples/procurement.airlock.yaml' }}
+          CONTRACT: ${{ github.event.inputs.contract || 'examples/agent-harness.airlock.yaml' }}
         run: node dist/cli.js build "$CONTRACT" --out ./pages-out
 
       - name: Upload artifact

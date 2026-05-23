@@ -11,9 +11,35 @@ describe("validateContractFile (example contracts)", () => {
     expect(result.issues).toHaveLength(0);
   });
 
-  it("accepts the procurement example", () => {
-    const result = validateContractFile(resolve(EXAMPLES, "procurement.airlock.yaml"));
+  it("accepts the agent-harness flagship example", () => {
+    const result = validateContractFile(resolve(EXAMPLES, "agent-harness.airlock.yaml"));
     expect(result.ok, formatIssues(result)).toBe(true);
+  });
+});
+
+describe("v0.3 version gate", () => {
+  it("rejects a v0.1 contract with a migration hint", () => {
+    const result = validateContract({
+      airlock: "0.1",
+      agent: { name: "a", version: "0.1.0" },
+      skills: [{ id: "ping", input: {}, output: {} }],
+    });
+    expect(result.ok).toBe(false);
+    expect(
+      result.issues.some((i) => i.message.includes("migration-v01-to-v03")),
+    ).toBe(true);
+  });
+
+  it("rejects a v0.2 contract with a migration hint", () => {
+    const result = validateContract({
+      airlock: "0.2",
+      agent: { name: "a", version: "0.1.0" },
+      skills: [{ id: "ping", input: {}, output: {} }],
+    });
+    expect(result.ok).toBe(false);
+    expect(
+      result.issues.some((i) => i.message.includes("migration-v01-to-v03")),
+    ).toBe(true);
   });
 });
 
@@ -29,7 +55,7 @@ describe("structural validation", () => {
 
   it("rejects a contract missing skills", () => {
     const result = validateContract({
-      airlock: "0.1",
+      airlock: "0.3",
       agent: { name: "a", version: "0.1.0" },
     });
     expect(result.ok).toBe(false);
@@ -61,10 +87,66 @@ describe("structural validation", () => {
 
   it("rejects an unknown channel", () => {
     const result = validateContract({
-      airlock: "0.1",
+      airlock: "0.3",
       agent: { name: "a", version: "0.1.0", channels: ["telepathy"] },
       skills: [{ id: "ping", input: {}, output: {} }],
     });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an authority rule targeting neither skill nor tool", () => {
+    const result = validateContract(baseContract({
+      authority: [
+        {
+          id: "r1",
+          binding_class: "deterministic",
+          when: "true",
+          then: { code: "ACCEPTED_BY_RULE" },
+        },
+      ],
+    }));
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an authority rule targeting both skill and tool", () => {
+    const result = validateContract(baseContract({
+      tools: [
+        { id: "noop", input_schema: { type: "object" } },
+      ],
+      authority: [
+        {
+          id: "r1",
+          skill: "ping",
+          tool: "noop",
+          binding_class: "deterministic",
+          when: "true",
+          then: { code: "ACCEPTED_BY_RULE" },
+        },
+      ],
+    }));
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an unknown hook event", () => {
+    const result = validateContract(baseContract({
+      hooks: [{ event: "midnight_chime", mode: "observe" }],
+    }));
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an unknown hook mode", () => {
+    const result = validateContract(baseContract({
+      hooks: [{ event: "before_skill", mode: "telepathy" }],
+    }));
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an unknown permission resource (object form)", () => {
+    const result = validateContract(baseContract({
+      permissions: {
+        allowed: [{ resource: "telepathy", op: "read" }],
+      },
+    }));
     expect(result.ok).toBe(false);
   });
 });
@@ -128,6 +210,25 @@ describe("semantic lint", () => {
     ).toBe(true);
   });
 
+  it("flags authority rules referencing unknown tools", () => {
+    const result = validateContract(baseContract({
+      tools: [{ id: "noop", input_schema: { type: "object" } }],
+      authority: [
+        {
+          id: "r1",
+          tool: "telepathy",
+          binding_class: "deterministic",
+          when: "true",
+          then: { code: "ACCEPTED_BY_RULE" },
+        },
+      ],
+    }));
+    expect(result.ok).toBe(false);
+    expect(
+      result.issues.some((i) => i.kind === "lint" && i.rule === "tool-ref"),
+    ).toBe(true);
+  });
+
   it("flags instant_failures referencing unknown skills", () => {
     const result = validateContract(baseContract({
       instant_failures: [
@@ -184,6 +285,22 @@ describe("semantic lint", () => {
     ).toBe(true);
   });
 
+  it("allows tool-targeted deterministic rules to reference `tool.*`", () => {
+    const result = validateContract(baseContract({
+      tools: [{ id: "bash", input_schema: { type: "object" } }],
+      authority: [
+        {
+          id: "bash-ok",
+          tool: "bash",
+          binding_class: "deterministic",
+          when: "matches(tool.command, 'echo')",
+          then: { code: "ACCEPTED_BY_RULE" },
+        },
+      ],
+    }));
+    expect(result.ok, formatIssues(result)).toBe(true);
+  });
+
   it("flags a when expression that fails to parse", () => {
     const result = validateContract(baseContract({
       authority: [
@@ -237,9 +354,52 @@ describe("semantic lint", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("warns on an unknown permission resource in short-form", () => {
+    const result = validateContract(baseContract({
+      permissions: {
+        allowed: ["telepathy.read:everywhere"],
+      },
+    }));
+    expect(result.ok).toBe(true); // warning, not error
+    expect(
+      result.issues.some(
+        (i) =>
+          i.kind === "lint" &&
+          i.rule === "permission-resource-unknown" &&
+          i.level === "warning",
+      ),
+    ).toBe(true);
+  });
+
+  it("flags hooks referencing unknown tools", () => {
+    const result = validateContract(baseContract({
+      hooks: [{ event: "pre_tool_use", mode: "observe", tool: "ghost" }],
+    }));
+    expect(result.ok).toBe(false);
+    expect(
+      result.issues.some((i) => i.kind === "lint" && i.rule === "tool-ref"),
+    ).toBe(true);
+  });
+
+  it("flags tools referencing unknown mcp_servers", () => {
+    const result = validateContract(baseContract({
+      tools: [
+        {
+          id: "remote_tool",
+          input_schema: { type: "object" },
+          source: { kind: "mcp", server: "ghost-server" },
+        },
+      ],
+    }));
+    expect(result.ok).toBe(false);
+    expect(
+      result.issues.some((i) => i.kind === "lint" && i.rule === "mcp-server-ref"),
+    ).toBe(true);
+  });
+
   it("flags an example whose declared binding mismatches its code", () => {
     const result = validateContract({
-      airlock: "0.1",
+      airlock: "0.3",
       agent: { name: "a", version: "0.1.0" },
       skills: [
         {
@@ -270,7 +430,7 @@ describe("semantic lint", () => {
 
 function baseContract(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
-    airlock: "0.1",
+    airlock: "0.3",
     agent: { name: "test-agent", version: "0.1.0" },
     skills: [{ id: "ping", input: {}, output: {} }],
     ...overrides,

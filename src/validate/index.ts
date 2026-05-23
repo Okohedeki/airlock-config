@@ -24,6 +24,12 @@ export type ValidationResult = {
 };
 
 export function validateContract(input: unknown): ValidationResult {
+  // Friendly migration message for pre-v0.3 contracts before structural noise.
+  const versionIssue = checkAirlockVersion(input);
+  if (versionIssue) {
+    return { ok: false, contract: null, issues: [versionIssue] };
+  }
+
   const structural = validateStructure(input);
   if (!structural.valid) {
     return {
@@ -41,6 +47,24 @@ export function validateContract(input: unknown): ValidationResult {
   }));
 
   return { ok: lint.ok, contract, issues };
+}
+
+function checkAirlockVersion(input: unknown): ValidationIssue | null {
+  if (typeof input !== "object" || input === null) return null;
+  const v = (input as { airlock?: unknown }).airlock;
+  if (typeof v !== "string") return null;
+  if (/^0\.3(\.\d+)?$/.test(v)) return null;
+  if (/^0\.[12](\.\d+)?$/.test(v)) {
+    return {
+      kind: "structural",
+      path: "/airlock",
+      message:
+        `contract declares airlock="${v}", but v0.3 is the current major. ` +
+        `See docs/migration-v01-to-v03.md for the field-by-field migration.`,
+      keyword: "version",
+    };
+  }
+  return null;
 }
 
 export function validateContractFile(path: string): ValidationResult {

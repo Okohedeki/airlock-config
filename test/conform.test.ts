@@ -4,12 +4,12 @@ import { startSandboxFromFile, type RunningSandbox } from "../src/sandbox/index.
 import { conform } from "../src/conform/index.js";
 import { validateContractFile } from "../src/validate/index.js";
 
-const PROCUREMENT = resolve(__dirname, "..", "examples", "procurement.airlock.yaml");
+const HARNESS = resolve(__dirname, "..", "examples", "agent-harness.airlock.yaml");
 
 let sandbox: RunningSandbox;
 
 beforeEach(async () => {
-  sandbox = await startSandboxFromFile(PROCUREMENT, { port: 0 });
+  sandbox = await startSandboxFromFile(HARNESS, { port: 0 });
 });
 
 afterEach(async () => {
@@ -17,14 +17,14 @@ afterEach(async () => {
 });
 
 describe("conformance vs sandbox", () => {
-  it("the sandbox is fully conformant with the procurement contract", async () => {
-    const result = validateContractFile(PROCUREMENT);
+  it("the sandbox is fully conformant with the agent-harness contract", async () => {
+    const result = validateContractFile(HARNESS);
     if (!result.ok || !result.contract) throw new Error("contract not valid");
     const report = await conform(result.contract, sandbox.url);
 
     expect(report.ok).toBe(true);
     expect(report.failed).toBe(0);
-    // Both PROMISE-tagged examples in the procurement contract should pass
+    // Two PROMISE-tagged examples in the harness contract (analyze-known-file, rename-symbol)
     expect(report.passed).toBeGreaterThanOrEqual(2);
 
     for (const c of report.cases.filter((c) => !c.note?.startsWith("skipped"))) {

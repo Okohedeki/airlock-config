@@ -9,8 +9,16 @@
 import type {
   AirlockContract,
   AuthorityRule,
+  Guardrails,
+  Harness,
+  Hook,
   InstantFailure,
+  MCPServer,
+  PermissionEntry,
+  Permissions,
+  SecretDecl,
   Skill,
+  Tool,
 } from "../validate/types.js";
 import { STYLES } from "./styles.js";
 
@@ -48,7 +56,15 @@ export function renderHTML(contract: AirlockContract, opts: RenderHTMLOptions): 
     renderHeader(contract),
     renderTOC(contract),
     renderDiscovery(contract),
+    renderHarness(contract.agent.harness),
     renderSkills(contract),
+    renderTools(contract),
+    renderHooks(contract.hooks),
+    renderPermissions(contract.permissions),
+    renderGuardrails(contract.guardrails),
+    renderMCPServers(contract.mcp_servers),
+    renderSecrets(contract.secrets),
+    renderDelegates(contract.delegates_to),
     renderAuthority(contract),
     renderInstantFailures(contract),
     renderStatusCodes(),
@@ -76,8 +92,16 @@ function renderHeader(c: AirlockContract): string {
 function renderTOC(c: AirlockContract): string {
   const items: string[] = [
     `<li><a href="#discovery">Discovery</a></li>`,
-    ...c.skills.map((s) => `<li><a href="#skill-${escape(s.id)}">${escape(s.id)}</a></li>`),
   ];
+  if (c.agent.harness) items.push(`<li><a href="#harness">Harness</a></li>`);
+  items.push(...c.skills.map((s) => `<li><a href="#skill-${escape(s.id)}">${escape(s.id)}</a></li>`));
+  if (c.tools && c.tools.length > 0) items.push(`<li><a href="#tools">Tools</a></li>`);
+  if (c.hooks && c.hooks.length > 0) items.push(`<li><a href="#hooks">Hooks</a></li>`);
+  if (c.permissions) items.push(`<li><a href="#permissions">Permissions</a></li>`);
+  if (c.guardrails) items.push(`<li><a href="#guardrails">Guardrails</a></li>`);
+  if (c.mcp_servers && c.mcp_servers.length > 0) items.push(`<li><a href="#mcp-servers">MCP servers</a></li>`);
+  if (c.secrets && c.secrets.length > 0) items.push(`<li><a href="#secrets">Secrets</a></li>`);
+  if (c.delegates_to && c.delegates_to.length > 0) items.push(`<li><a href="#delegates">Delegation</a></li>`);
   if (c.authority && c.authority.length > 0) items.push(`<li><a href="#authority">Authority rules</a></li>`);
   if (c.instant_failures && c.instant_failures.length > 0) items.push(`<li><a href="#instant-failures">Instant failures</a></li>`);
   items.push(`<li><a href="#status-codes">Status codes</a></li>`);
@@ -105,17 +129,44 @@ function renderDiscovery(c: AirlockContract): string {
 </section>`.trim();
 }
 
+function bindingBadge(kind: "binding" | "informational"): string {
+  const cls = kind === "binding" ? "binding" : "informational";
+  const label = kind === "binding" ? "BINDING" : "INFORMATIONAL";
+  return `<span class="tag ${cls}" title="${kind === "binding" ? "Load-bearing promise consumers may rely on (ADR 0004)" : "Deployment fact; may change in minor versions (ADR 0004)"}">${label}</span>`;
+}
+
+function renderHarness(h: Harness | undefined): string {
+  if (!h) return "";
+  const limits = h.limits ?? {};
+  const rows = [
+    h.framework && `<tr><td><code>framework</code></td><td><code>${escape(h.framework)}</code></td></tr>`,
+    h.model && `<tr><td><code>model</code></td><td><code>${escape(h.model)}</code></td></tr>`,
+    h.runtime && `<tr><td><code>runtime</code></td><td><code>${escape(h.runtime)}</code></td></tr>`,
+    limits.max_tokens !== undefined && `<tr><td><code>limits.max_tokens</code></td><td><code>${limits.max_tokens}</code></td></tr>`,
+    limits.max_turns !== undefined && `<tr><td><code>limits.max_turns</code></td><td><code>${limits.max_turns}</code></td></tr>`,
+    limits.max_tool_calls_per_turn !== undefined && `<tr><td><code>limits.max_tool_calls_per_turn</code></td><td><code>${limits.max_tool_calls_per_turn}</code></td></tr>`,
+    limits.timeout && `<tr><td><code>limits.timeout</code></td><td><code>${escape(limits.timeout)}</code></td></tr>`,
+  ].filter(Boolean);
+  if (rows.length === 0) return "";
+  return `
+<section id="harness">
+  <h2>Harness ${bindingBadge("informational")}</h2>
+  <p>Runtime envelope serving this contract. Per ADR&nbsp;0004 these fields may change in minor versions without breaking the binding surface.</p>
+  <table><tbody>${rows.join("")}</tbody></table>
+</section>`.trim();
+}
+
 function renderSkills(c: AirlockContract): string {
   if (c.skills.length === 0) return "";
   return `
 <section id="skills">
-  <h2>Skills</h2>
+  <h2>Skills ${bindingBadge("binding")}</h2>
   ${c.skills.map((s) => renderSkill(s, c)).join("\n")}
 </section>`.trim();
 }
 
 function renderSkill(skill: Skill, c: AirlockContract): string {
-  const slaInfo = c.sla?.[skill.id];
+  const slaInfo = c.sla?.[skill.id] ?? c.sla?.[`skill:${skill.id}`];
   const slaLine = slaInfo
     ? `<p><strong>SLA:</strong> respond within <code>${escape(slaInfo.respond_within ?? "?")}</code>; on breach: <code>${escape(String(slaInfo.on_breach ?? "?"))}</code></p>`
     : "";
@@ -167,11 +218,154 @@ function renderTryIt(skill: Skill): string {
 </div>`.trim();
 }
 
+function renderTools(c: AirlockContract): string {
+  if (!c.tools || c.tools.length === 0) return "";
+  return `
+<section id="tools">
+  <h2>Tools ${bindingBadge("binding")}</h2>
+  <p>Capabilities the harness invokes internally. Distinct from <a href="#skills">skills</a> (which are what external consumers call). Authority rules and permissions may target tools by id.</p>
+  ${c.tools.map((t) => renderTool(t)).join("\n")}
+</section>`.trim();
+}
+
+function renderTool(t: Tool): string {
+  const effects = t.side_effects && t.side_effects.length > 0
+    ? `<p><strong>Side effects:</strong> ${t.side_effects.map((e) => `<code>${escape(e)}</code>`).join(", ")}</p>`
+    : "";
+  const source = t.source
+    ? `<p><strong>Source:</strong> <code>${escape(t.source.kind)}</code>${t.source.server ? ` (server <code>${escape(t.source.server)}</code>)` : ""}</p>`
+    : "";
+  const limits = t.limits
+    ? `<p><strong>Limits:</strong> ${[
+        t.limits.timeout && `timeout <code>${escape(t.limits.timeout)}</code>`,
+        t.limits.max_calls_per_skill !== undefined && `max ${t.limits.max_calls_per_skill} calls/skill`,
+      ].filter(Boolean).join(" · ")}</p>`
+    : "";
+  return `
+<div class="skill" id="tool-${escape(t.id)}">
+  <h3><code>${escape(t.id)}</code> <span class="endpoint">POST /tools/${escape(t.id)}</span></h3>
+  ${t.description ? `<p>${escape(t.description)}</p>` : ""}
+  ${effects}
+  ${source}
+  ${limits}
+  <h4>Input schema</h4>
+  <pre><code>${escape(JSON.stringify(t.input_schema, null, 2))}</code></pre>
+  ${t.output_schema ? `<h4>Output schema</h4><pre><code>${escape(JSON.stringify(t.output_schema, null, 2))}</code></pre>` : ""}
+</div>`.trim();
+}
+
+function renderHooks(hooks: Hook[] | undefined): string {
+  if (!hooks || hooks.length === 0) return "";
+  return `
+<section id="hooks">
+  <h2>Hooks ${bindingBadge("binding")}</h2>
+  <p>Lifecycle interception points the harness fires. <code>mode</code> is load-bearing: <code>observe</code> is read-only, <code>mutate</code> may rewrite the in-flight payload, <code>block</code> may halt the action.</p>
+  <table>
+    <thead><tr><th>event</th><th>mode</th><th>scope</th><th>description</th></tr></thead>
+    <tbody>
+      ${hooks.map((h) => `<tr>
+        <td><code>${escape(h.event)}</code></td>
+        <td><span class="tag ${h.mode === "block" ? "estimate" : h.mode === "mutate" ? "judgment" : "promise"}">${escape(h.mode)}</span></td>
+        <td>${h.skill ? `skill <code>${escape(h.skill)}</code>` : h.tool ? `tool <code>${escape(h.tool)}</code>` : "all"}</td>
+        <td>${h.description ? escape(h.description) : ""}</td>
+      </tr>`).join("\n")}
+    </tbody>
+  </table>
+</section>`.trim();
+}
+
+function renderPermissions(p: Permissions | undefined): string {
+  if (!p) return "";
+  const renderBucket = (label: string, entries: PermissionEntry[] | undefined): string => {
+    if (!entries || entries.length === 0) return "";
+    return `<h4>${label}</h4><ul>${entries.map((e) => `<li><code>${escape(formatPermission(e))}</code>${typeof e !== "string" && e.reason ? ` — ${escape(e.reason)}` : ""}</li>`).join("")}</ul>`;
+  };
+  return `
+<section id="permissions">
+  <h2>Permissions ${bindingBadge("binding")}</h2>
+  <p>Static allow/disallow against typed resources. Resource taxonomy: <code>fs</code>, <code>network</code>, <code>tool</code>, <code>mcp</code>, <code>env</code>, <code>secret</code>.</p>
+  ${renderBucket("Allowed", p.allowed)}
+  ${renderBucket("Disallowed", p.disallowed)}
+</section>`.trim();
+}
+
+function formatPermission(e: PermissionEntry): string {
+  if (typeof e === "string") return e;
+  const head = e.op === "*" || !e.op ? e.resource : `${e.resource}.${e.op}`;
+  return e.scope ? `${head}:${e.scope}` : head;
+}
+
+function renderGuardrails(g: Guardrails | undefined): string {
+  if (!g) return "";
+  const parts: string[] = [];
+  if (g.refused_topics && g.refused_topics.length > 0) {
+    parts.push(`<p><strong>Refused topics:</strong> ${g.refused_topics.map((t) => `<code>${escape(t)}</code>`).join(", ")}</p>`);
+  }
+  if (g.refused_actions && g.refused_actions.length > 0) {
+    parts.push(`<p><strong>Refused actions:</strong> ${g.refused_actions.map((t) => `<code>${escape(t)}</code>`).join(", ")}</p>`);
+  }
+  if (g.required_authentication !== undefined) {
+    parts.push(`<p><strong>Requires authentication:</strong> <code>${g.required_authentication}</code></p>`);
+  }
+  if (parts.length === 0) return "";
+  return `
+<section id="guardrails">
+  <h2>Guardrails ${bindingBadge("binding")}</h2>
+  <p>Categorical refusals at the agent level; coarser than authority rules.</p>
+  ${parts.join("\n")}
+</section>`.trim();
+}
+
+function renderMCPServers(servers: MCPServer[] | undefined): string {
+  if (!servers || servers.length === 0) return "";
+  return `
+<section id="mcp-servers">
+  <h2>MCP servers ${bindingBadge("informational")}</h2>
+  <p>Model Context Protocol servers the harness loads to source tools from.</p>
+  <table>
+    <thead><tr><th>name</th><th>endpoint</th><th>auth</th><th>tools</th></tr></thead>
+    <tbody>
+      ${servers.map((s) => `<tr>
+        <td><code>${escape(s.name)}</code></td>
+        <td>${s.endpoint ? `<code>${escape(s.endpoint)}</code>` : ""}</td>
+        <td>${s.auth_posture ? `<code>${escape(s.auth_posture)}</code>` : ""}</td>
+        <td>${s.allowed_tools ? s.allowed_tools.map((t) => `<code>${escape(t)}</code>`).join(", ") : "all"}</td>
+      </tr>`).join("\n")}
+    </tbody>
+  </table>
+</section>`.trim();
+}
+
+function renderSecrets(secrets: SecretDecl[] | undefined): string {
+  if (!secrets || secrets.length === 0) return "";
+  return `
+<section id="secrets">
+  <h2>Secrets ${bindingBadge("informational")}</h2>
+  <p>Named env-vars or credentials the harness reads. Names and purposes only — never values.</p>
+  <table>
+    <thead><tr><th>name</th><th>purpose</th></tr></thead>
+    <tbody>
+      ${secrets.map((s) => `<tr><td><code>${escape(s.name)}</code></td><td>${s.purpose ? escape(s.purpose) : ""}</td></tr>`).join("\n")}
+    </tbody>
+  </table>
+</section>`.trim();
+}
+
+function renderDelegates(delegates: string[] | undefined): string {
+  if (!delegates || delegates.length === 0) return "";
+  return `
+<section id="delegates">
+  <h2>Delegation ${bindingBadge("informational")}</h2>
+  <p>Other Airlock contracts this agent may dispatch sub-work to — a transitive trust surface.</p>
+  <ul>${delegates.map((u) => `<li><a href="${escape(u)}"><code>${escape(u)}</code></a></li>`).join("")}</ul>
+</section>`.trim();
+}
+
 function renderAuthority(c: AirlockContract): string {
   if (!c.authority || c.authority.length === 0) return "";
   return `
 <section id="authority">
-  <h2>Authority rules</h2>
+  <h2>Authority rules ${bindingBadge("binding")}</h2>
   <p>Evaluated in declaration order; the first matching <code>when</code> produces the verdict.</p>
   <ul class="rule-list">
     ${c.authority.map((r, i) => renderRule(r, i)).join("\n")}
@@ -179,16 +373,21 @@ function renderAuthority(c: AirlockContract): string {
 </section>`.trim();
 }
 
-function renderRule(r: AuthorityRule, idx: number): string {
+function renderRule(r: AuthorityRule, _idx: number): string {
   const cls = r.binding_class === "deterministic" ? "deterministic" : "judgment";
   const bindingTag = r.binding_class === "deterministic" ? "PROMISE" : "ESTIMATE";
   const bindingClass = r.binding_class === "deterministic" ? "promise" : "estimate";
+  const target = r.skill
+    ? `on skill <code>${escape(r.skill)}</code>`
+    : r.tool
+      ? `on tool <code>${escape(r.tool)}</code>`
+      : `<em>(no target)</em>`;
   return `
 <li>
   <strong><code>${escape(r.id)}</code></strong>
   <span class="tag ${cls}">${escape(r.binding_class)}</span>
   <span class="tag ${bindingClass}">→ ${bindingTag}</span>
-  on skill <code>${escape(r.skill)}</code>
+  ${target}
   ${r.description ? `<p>${escape(r.description)}</p>` : ""}
   <p>WHEN <code>${escape(r.when)}</code> → <code>${escape(r.then.code)}</code>${r.then.action ? ` + ${escape(r.then.action)}` : ""}</p>
   ${r.else ? `<p>ELSE → <code>${escape(r.else.code)}</code>${r.else.action ? ` + ${escape(r.else.action)}` : ""}</p>` : ""}
@@ -199,7 +398,7 @@ function renderInstantFailures(c: AirlockContract): string {
   if (!c.instant_failures || c.instant_failures.length === 0) return "";
   return `
 <section id="instant-failures">
-  <h2>Instant failures</h2>
+  <h2>Instant failures ${bindingBadge("binding")}</h2>
   <p>Reject-on-sight conditions. Always evaluated before authority rules.</p>
   <table>
     <thead><tr><th>id</th><th>when</th><th>code</th><th>scope</th></tr></thead>
@@ -283,7 +482,9 @@ document.querySelectorAll('.try-it').forEach(function(box){
         body: JSON.stringify(input)
       });
       var json = await res.json();
-      show('// HTTP ' + res.status + ' (via sandbox)\\n' + JSON.stringify(json, null, 2));
+      var src = res.headers.get('x-airlock-detail-source') || '';
+      var srcLine = src ? '// detail source: ' + src + '\\n' : '';
+      show('// HTTP ' + res.status + ' (via sandbox)\\n' + srcLine + JSON.stringify(json, null, 2));
     } catch (err) {
       show('error: ' + (err && err.message ? err.message : err) + '\\n(is the sandbox running at ' + base + '?)');
     }
@@ -292,8 +493,9 @@ document.querySelectorAll('.try-it').forEach(function(box){
   function runInBrowser(mode, input){
     if (!window.airlock) { show('error: in-browser evaluator did not load'); return; }
     try {
-      var verdict = window.airlock.evaluate(skill, input, mode);
-      show('// in-browser eval\\n' + JSON.stringify(verdict, null, 2));
+      var result = window.airlock.evaluate(skill, input, mode);
+      var src = result.detailSource ? '// detail source: ' + result.detailSource + '\\n' : '';
+      show('// in-browser eval\\n' + src + JSON.stringify(result.verdict || result, null, 2));
     } catch (err) {
       show('error: ' + (err && err.message ? err.message : err));
     }

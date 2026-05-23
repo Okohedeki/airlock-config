@@ -1,4 +1,4 @@
-airlock: "0.1"
+airlock: "0.3"
 agent:
   name: hello-agent
   version: 0.1.0

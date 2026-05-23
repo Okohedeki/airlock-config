@@ -8,6 +8,13 @@ export type AirlockContract = {
   agent: Agent;
   schemas?: Record<string, unknown>;
   skills: Skill[];
+  tools?: Tool[];
+  hooks?: Hook[];
+  mcp_servers?: MCPServer[];
+  permissions?: Permissions;
+  guardrails?: Guardrails;
+  secrets?: SecretDecl[];
+  delegates_to?: string[];
   authority?: AuthorityRule[];
   instant_failures?: InstantFailure[];
   actions?: Actions;
@@ -23,6 +30,19 @@ export type Agent = {
   channels?: Channel[];
   homepage?: string;
   contact?: { name?: string; url?: string; email?: string };
+  harness?: Harness;
+};
+
+export type Harness = {
+  framework?: string;
+  model?: string;
+  runtime?: string;
+  limits?: {
+    max_tokens?: number;
+    max_turns?: number;
+    max_tool_calls_per_turn?: number;
+    timeout?: string;
+  };
 };
 
 export type Channel = "http" | "a2a" | "email" | "edi";
@@ -33,6 +53,92 @@ export type Skill = {
   input: Record<string, unknown>;
   output: Record<string, unknown>;
   examples?: Example[];
+};
+
+export type Tool = {
+  id: string;
+  description?: string;
+  input_schema: Record<string, unknown>;
+  output_schema?: Record<string, unknown>;
+  side_effects?: ToolSideEffect[];
+  source?: {
+    kind: "mcp" | "builtin" | "plugin";
+    server?: string;
+  };
+  limits?: {
+    timeout?: string;
+    max_calls_per_skill?: number;
+  };
+};
+
+export type ToolSideEffect =
+  | "fs.read"
+  | "fs.write"
+  | "network"
+  | "shell"
+  | "process"
+  | "compute-only";
+
+export type Hook = {
+  event: HookEvent;
+  mode: HookMode;
+  description?: string;
+  skill?: string;
+  tool?: string;
+};
+
+export type HookEvent =
+  | "before_skill"
+  | "after_skill"
+  | "pre_tool_use"
+  | "post_tool_use"
+  | "on_error"
+  | "on_stop";
+
+export type HookMode = "observe" | "mutate" | "block";
+
+export type MCPServer = {
+  name: string;
+  endpoint?: string;
+  auth_posture?: "none" | "oauth" | "api-key" | "mtls" | "shared-secret";
+  allowed_tools?: string[];
+};
+
+export type Permissions = {
+  allowed?: PermissionEntry[];
+  disallowed?: PermissionEntry[];
+};
+
+export type PermissionEntry = PermissionObject | string;
+
+export type PermissionObject = {
+  resource: PermissionResource;
+  op: string;
+  scope?: string;
+  reason?: string;
+};
+
+export type PermissionResource =
+  | "fs"
+  | "network"
+  | "tool"
+  | "mcp"
+  | "env"
+  | "secret";
+
+export const PERMISSION_RESOURCES: ReadonlySet<PermissionResource> = new Set<
+  PermissionResource
+>(["fs", "network", "tool", "mcp", "env", "secret"]);
+
+export type Guardrails = {
+  refused_topics?: string[];
+  refused_actions?: string[];
+  required_authentication?: boolean;
+};
+
+export type SecretDecl = {
+  name: string;
+  purpose?: string;
 };
 
 export type Example = {
@@ -49,10 +155,16 @@ export type ExpectedVerdict = {
   ref?: string;
 };
 
+/**
+ * Authority rules target exactly one of `skill` or `tool` (enforced by the JSON
+ * Schema oneOf). The TypeScript surface keeps both optional for ergonomics; the
+ * pipeline checks which is set.
+ */
 export type AuthorityRule = {
   id: string;
   description?: string;
-  skill: string;
+  skill?: string;
+  tool?: string;
   field?: string;
   binding_class: BindingClass;
   when: string;

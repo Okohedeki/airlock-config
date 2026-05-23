@@ -1,0 +1,335 @@
+airlock: "0.3"
+
+agent:
+  name: airlock-codegen-agent
+  version: 0.3.0
+  description: |
+    A coding agent published as an Airlock contract. Demonstrates v0.3:
+    skills (what external consumers call), tools (what the agent reaches
+    for internally), hooks, permissions, guardrails, and a harness block.
+    Foreign agents can fetch this contract and know everything this agent
+    will and won't do — before sending a single request.
+  channels: [http]
+  homepage: https://okohedeki.github.io/airlock/
+  contact:
+    name: Airlock harness example
+    url: https://github.com/Okohedeki/airlock
+
+  # INFORMATIONAL (ADR 0004). Swapping framework/model does not break the
+  # binding surface and does not require a major bump.
+  harness:
+    framework: claude-code
+    model: claude-opus-4-7
+    runtime: node-24
+    limits:
+      max_tokens: 200000
+      max_turns: 100
+      max_tool_calls_per_turn: 25
+      timeout: 5m
+
+schemas:
+  CodeRef:
+    type: object
+    required: [path]
+    properties:
+      path:
+        type: string
+        description: Workspace-relative path.
+      line:
+        type: integer
+        minimum: 1
+      column:
+        type: integer
+        minimum: 1
+  EditProposal:
+    type: object
+    required: [path, old_text, new_text]
+    properties:
+      path: { type: string }
+      old_text: { type: string }
+      new_text: { type: string }
+      rationale: { type: string }
+
+# BINDING. External interactions consumers call.
+skills:
+  - id: analyze_code
+    description: Read a file, return a structured summary of what it does and where its risks are.
+    input:
+      $ref: "#/schemas/CodeRef"
+    output:
+      type: object
+      required: [summary, risks]
+      properties:
+        path: { type: string }
+        summary: { type: string }
+        risks:
+          type: array
+          items: { type: string }
+        line_count: { type: integer }
+    examples:
+      - name: analyze-known-file
+        in:
+          path: src/expr/index.ts
+        out:
+          path: src/expr/index.ts
+          summary: Public surface of the expression engine — exports parse/evaluate/walk.
+          risks: []
+          line_count: 65
+        expected_verdict:
+          code: ACCEPTED_BY_RULE
+          binding: PROMISE
+          ref: analyze-within-workspace
+
+  - id: propose_edit
+    description: |
+      Propose a single-file edit. Returns an EditProposal the consumer can
+      apply (or not) — this agent never writes to disk on its own.
+    input:
+      type: object
+      required: [path, change]
+      properties:
+        path: { type: string }
+        change: { type: string, description: "Natural-language description of the desired change." }
+    output:
+      $ref: "#/schemas/EditProposal"
+    examples:
+      - name: rename-symbol
+        in:
+          path: src/sandbox/index.ts
+          change: rename handleRequest to dispatchRequest
+        out:
+          path: src/sandbox/index.ts
+          old_text: async function handleRequest(
+          new_text: async function dispatchRequest(
+          rationale: Clearer name for the routing function.
+        expected_verdict:
+          code: ACCEPTED_BY_RULE
+          binding: PROMISE
+          ref: propose-edit-non-blacklisted
+
+  - id: run_command
+    description: |
+      Execute a shell command the consumer asks for. Subject to the bash
+      tool's authority rules and to the permission disallow list — many
+      commands will be refused outright (see authority/permissions/guardrails).
+    input:
+      type: object
+      required: [command]
+      properties:
+        command: { type: string }
+        cwd: { type: string }
+    output:
+      type: object
+      properties:
+        exit_code: { type: integer }
+        stdout: { type: string }
+        stderr: { type: string }
+
+# BINDING. Internal capabilities the harness invokes during its work.
+tools:
+  - id: read_file
+    description: Read a file from the workspace. Built-in, no MCP source.
+    input_schema:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string }
+    output_schema:
+      type: object
+      properties:
+        path: { type: string }
+        content: { type: string }
+        bytes: { type: integer }
+    side_effects: [fs.read]
+    source: { kind: builtin }
+
+  - id: edit_file
+    description: Apply an EditProposal to a workspace file.
+    input_schema:
+      $ref: "#/schemas/EditProposal"
+    output_schema:
+      type: object
+      properties:
+        path: { type: string }
+        bytes_written: { type: integer }
+    side_effects: [fs.read, fs.write]
+    source: { kind: builtin }
+
+  - id: bash
+    description: Execute a shell command. Heavily restricted (see permissions + authority).
+    input_schema:
+      type: object
+      required: [command]
+      properties:
+        command: { type: string }
+        cwd: { type: string }
+    output_schema:
+      type: object
+      properties:
+        exit_code: { type: integer }
+        stdout: { type: string }
+        stderr: { type: string }
+    side_effects: [shell, fs.read, fs.write, process]
+    source: { kind: builtin }
+    limits:
+      timeout: 30s
+      max_calls_per_skill: 10
+
+  - id: web_fetch
+    description: Fetch a URL. Whitelist-only (see permissions.allowed network entries).
+    input_schema:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+    output_schema:
+      type: object
+      properties:
+        status: { type: integer }
+        body: { type: string }
+        content_type: { type: string }
+    side_effects: [network]
+    source: { kind: builtin }
+
+# BINDING. Lifecycle interception points the harness fires.
+hooks:
+  - event: pre_tool_use
+    mode: block
+    description: |
+      Authority rules + permissions are evaluated before any tool call. May
+      halt the invocation (e.g. bash command matches the disallow list).
+  - event: post_tool_use
+    mode: observe
+    description: Read-only audit log of every tool invocation and its result.
+  - event: on_error
+    mode: observe
+    description: Captures errors for telemetry; does not retry or mutate.
+  - event: before_skill
+    mode: mutate
+    skill: analyze_code
+    description: |
+      Canonicalises workspace-relative paths before the skill runs. Mutates
+      input — consumers should expect input.path to be normalised in any
+      hook-observed payload downstream.
+
+# BINDING. Static allow/disallow at typed-resource granularity. Closed v0.3
+# resource enum: fs, network, tool, mcp, env, secret.
+permissions:
+  allowed:
+    - "fs.read:./**"
+    - "network:api.github.com"
+    - "network:raw.githubusercontent.com"
+    - "env:GITHUB_TOKEN"
+  disallowed:
+    - { resource: fs, op: write, scope: "/etc/**", reason: System config off-limits. }
+    - { resource: fs, op: write, scope: "/Users/**/.ssh/**", reason: SSH keys off-limits. }
+    - { resource: tool, op: bash, scope: "rm -rf *", reason: No recursive deletes. }
+    - { resource: tool, op: bash, scope: "sudo *", reason: No privilege escalation. }
+    - "network:*.internal"
+
+# BINDING. Categorical refusals at the agent level.
+guardrails:
+  refused_topics:
+    - financial-advice
+    - medical-diagnosis
+    - legal-counsel
+  refused_actions:
+    - commit-secrets
+    - force-push-main
+    - delete-production-data
+  required_authentication: false
+
+# INFORMATIONAL. Named env-vars the harness reads (never values).
+secrets:
+  - name: GITHUB_TOKEN
+    purpose: Read repo metadata when web_fetch hits github API.
+
+authority:
+  - id: analyze-within-workspace
+    description: |
+      analyze_code accepts any workspace-relative path. Outside-workspace
+      paths are deterministically refused.
+    skill: analyze_code
+    binding_class: deterministic
+    when: "matches(input.path, '^[^/]')"
+    then:
+      code: ACCEPTED_BY_RULE
+      action: UNILATERAL_COMMIT
+    else:
+      code: OUT_OF_SCOPE
+      message: analyze_code only accepts workspace-relative paths.
+
+  - id: propose-edit-non-blacklisted
+    description: propose_edit accepts edits to any workspace file by default.
+    skill: propose_edit
+    binding_class: deterministic
+    when: "matches(input.path, '^[^/]')"
+    then:
+      code: ACCEPTED_BY_RULE
+      action: UNILATERAL_COMMIT
+    else:
+      code: OUT_OF_SCOPE
+
+  - id: run-command-judgment
+    description: |
+      run_command is gated on the bash tool's authority — this rule expresses
+      that an arbitrary command's acceptance depends on what the consumer asks
+      for, which the publisher cannot promise statically.
+    skill: run_command
+    binding_class: judgment
+    when: "len(input.command) > 0"
+    then:
+      code: DEPENDS_ON_STATE
+      message: The bash tool may accept or refuse depending on the command shape.
+
+  # Tool-targeted rules (v0.3) — fire when the agent invokes the named tool.
+  - id: bash-refuse-rm-rf
+    description: Deterministic refusal of recursive deletes via the bash tool.
+    tool: bash
+    binding_class: deterministic
+    when: 'matches(tool.command, "rm\\s+-rf")'
+    then:
+      code: REFUSED_BY_POLICY
+      message: bash tool will not execute recursive deletes.
+
+  - id: bash-refuse-sudo
+    description: Deterministic refusal of privilege escalation via the bash tool.
+    tool: bash
+    binding_class: deterministic
+    when: 'matches(tool.command, "^sudo\\s")'
+    then:
+      code: REFUSED_BY_POLICY
+      message: bash tool will not invoke sudo.
+
+instant_failures:
+  - id: missing-path
+    description: analyze_code requires a path.
+    when: "input.path == null"
+    code: MISSING_INPUT
+    skill: analyze_code
+
+actions:
+  exposes:
+    - UNILATERAL_COMMIT
+    - ESCALATED_TO_HUMAN
+
+sla:
+  analyze_code:
+    respond_within: "30s"
+    on_breach: ESCALATED_TO_HUMAN
+  propose_edit:
+    respond_within: "1m"
+    on_breach: ESCALATED_TO_HUMAN
+  run_command:
+    respond_within: "1m"
+    on_breach: FAILED
+  "tool:bash":
+    respond_within: "30s"
+    on_breach: FAILED
+
+lifecycle:
+  states:
+    - SUBMITTED
+    - WORKING
+    - COMPLETED
+    - FAILED

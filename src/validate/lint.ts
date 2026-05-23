@@ -4,17 +4,23 @@
  * validation, so types are sound.
  *
  * Still deferred (needs JSON-Schema-aware field resolution):
- *   - Check `when` field references resolve against the skill's input schema
+ *   - Check `when` field references resolve against the targeted skill/tool schema
  */
 
 import type {
   AirlockContract,
   AuthorityRule,
   Example,
+  PermissionEntry,
+  PermissionResource,
   RuleOutcome,
   StatusCode,
 } from "./types.js";
-import { ESTIMATE_CODES, PROMISE_CODES } from "./types.js";
+import {
+  ESTIMATE_CODES,
+  PERMISSION_RESOURCES,
+  PROMISE_CODES,
+} from "./types.js";
 import {
   ParseError,
   calledFunctions,
@@ -40,10 +46,14 @@ export function lintContract(contract: AirlockContract): LintResult {
   const findings: LintFinding[] = [];
 
   const skillIds = new Set(contract.skills.map((s) => s.id));
+  const toolIds = new Set((contract.tools ?? []).map((t) => t.id));
+  const mcpServerNames = new Set((contract.mcp_servers ?? []).map((s) => s.name));
   const declaredActions = new Set(contract.actions?.exposes ?? []);
 
   contract.authority?.forEach((rule, idx) => {
-    findings.push(...lintAuthorityRule(rule, idx, skillIds, declaredActions));
+    findings.push(
+      ...lintAuthorityRule(rule, idx, skillIds, toolIds, declaredActions),
+    );
   });
 
   contract.instant_failures?.forEach((failure, idx) => {
@@ -61,6 +71,7 @@ export function lintContract(contract: AirlockContract): LintResult {
         `/instant_failures/${idx}/when`,
         `instant_failures[${idx}] (${failure.id})`,
         true, // instant_failures must be deterministic by construction
+        ["input"],
       ),
     );
   });
@@ -72,6 +83,71 @@ export function lintContract(contract: AirlockContract): LintResult {
     });
   });
 
+  contract.hooks?.forEach((hook, idx) => {
+    if (hook.skill && !skillIds.has(hook.skill)) {
+      findings.push({
+        level: "error",
+        path: `/hooks/${idx}/skill`,
+        message: `hooks[${idx}] (${hook.event}) references unknown skill "${hook.skill}"`,
+        rule: "skill-ref",
+      });
+    }
+    if (hook.tool && !toolIds.has(hook.tool)) {
+      findings.push({
+        level: "error",
+        path: `/hooks/${idx}/tool`,
+        message: `hooks[${idx}] (${hook.event}) references unknown tool "${hook.tool}"`,
+        rule: "tool-ref",
+      });
+    }
+  });
+
+  contract.tools?.forEach((tool, idx) => {
+    if (tool.source?.kind === "mcp") {
+      if (!tool.source.server) {
+        findings.push({
+          level: "error",
+          path: `/tools/${idx}/source/server`,
+          message: `tools[${idx}] (${tool.id}) has source.kind=mcp but no source.server`,
+          rule: "tool-source-mcp-server-missing",
+        });
+      } else if (!mcpServerNames.has(tool.source.server)) {
+        findings.push({
+          level: "error",
+          path: `/tools/${idx}/source/server`,
+          message: `tools[${idx}] (${tool.id}) references unknown mcp_server "${tool.source.server}"`,
+          rule: "mcp-server-ref",
+        });
+      }
+    }
+  });
+
+  contract.permissions?.allowed?.forEach((entry, idx) => {
+    const f = lintPermissionEntry(entry, `/permissions/allowed/${idx}`, "allowed", idx);
+    if (f) findings.push(f);
+  });
+  contract.permissions?.disallowed?.forEach((entry, idx) => {
+    const f = lintPermissionEntry(entry, `/permissions/disallowed/${idx}`, "disallowed", idx);
+    if (f) findings.push(f);
+  });
+
+  contract.sla &&
+    Object.keys(contract.sla).forEach((key) => {
+      const id = key.startsWith("skill:") || key.startsWith("tool:")
+        ? key.slice(key.indexOf(":") + 1)
+        : key;
+      const kind = key.startsWith("tool:") ? "tool" : "skill";
+      const lookup = kind === "tool" ? toolIds : skillIds;
+      if (!lookup.has(id)) {
+        findings.push({
+          level: "error",
+          path: `/sla/${key}`,
+          message: `sla key "${key}" references unknown ${kind} "${id}"`,
+          rule: "sla-ref",
+        });
+      }
+    });
+
   const hasError = findings.some((f) => f.level === "error");
   return hasError ? { ok: false, findings } : { ok: true, findings };
 }
@@ -80,18 +156,33 @@ function lintAuthorityRule(
   rule: AuthorityRule,
   idx: number,
   skillIds: ReadonlySet<string>,
+  toolIds: ReadonlySet<string>,
   declaredActions: ReadonlySet<string>,
 ): LintFinding[] {
   const findings: LintFinding[] = [];
   const base = `/authority/${idx}`;
 
-  if (!skillIds.has(rule.skill)) {
+  const target = rule.skill ? { kind: "skill" as const, id: rule.skill }
+    : rule.tool ? { kind: "tool" as const, id: rule.tool }
+    : null;
+
+  if (!target) {
     findings.push({
       level: "error",
-      path: `${base}/skill`,
-      message: `authority[${idx}] (${rule.id}) references unknown skill "${rule.skill}"`,
-      rule: "skill-ref",
+      path: base,
+      message: `authority[${idx}] (${rule.id}) must target either a skill or a tool`,
+      rule: "target-missing",
     });
+  } else {
+    const lookup = target.kind === "skill" ? skillIds : toolIds;
+    if (!lookup.has(target.id)) {
+      findings.push({
+        level: "error",
+        path: `${base}/${target.kind}`,
+        message: `authority[${idx}] (${rule.id}) references unknown ${target.kind} "${target.id}"`,
+        rule: `${target.kind}-ref`,
+      });
+    }
   }
 
   findings.push(
@@ -103,12 +194,16 @@ function lintAuthorityRule(
     );
   }
 
+  // Tool-targeted rules may reference `tool.<field>`; skill-targeted rules use `input.<field>`.
+  const allowedRoots = target?.kind === "tool" ? ["input", "tool"] : ["input"];
+
   findings.push(
     ...lintWhenExpression(
       rule.when,
       `${base}/when`,
       `authority[${idx}] (${rule.id})`,
       rule.binding_class === "deterministic",
+      allowedRoots,
     ),
   );
 
@@ -117,13 +212,14 @@ function lintAuthorityRule(
 
 /**
  * Lint a `when` expression: must parse; must only call whitelisted helpers;
- * if `mustBeDeterministic`, must reference only `input.*` (no runtime state).
+ * if `mustBeDeterministic`, may only reference roots in `allowedRoots` (no runtime state).
  */
 function lintWhenExpression(
   source: string,
   path: string,
   label: string,
   mustBeDeterministic: boolean,
+  allowedRoots: readonly string[],
 ): LintFinding[] {
   const findings: LintFinding[] = [];
 
@@ -155,9 +251,10 @@ function lintWhenExpression(
   }
 
   if (mustBeDeterministic) {
+    const allowed = new Set(allowedRoots);
     const offending: string[] = [];
     for (const root of rootBindings(ast)) {
-      if (root !== "input") offending.push(root);
+      if (!allowed.has(root)) offending.push(root);
     }
     if (offending.length > 0) {
       findings.push({
@@ -167,7 +264,9 @@ function lintWhenExpression(
           `${label} is deterministic but references runtime state: ${offending
             .map((r) => `"${r}"`)
             .join(", ")}. ` +
-          `Deterministic expressions may reference only "input".`,
+          `Deterministic expressions may reference only ${allowedRoots
+            .map((r) => `"${r}"`)
+            .join(" / ")}.`,
         rule: "when-runtime-state",
       });
     }
@@ -254,6 +353,70 @@ function lintExample(
   }
 
   return null;
+}
+
+/**
+ * Validate a permission entry's resource is in the closed v0.3 enum. The
+ * structural pass already validates object-form entries via the JSON Schema enum;
+ * this pass parses the short-form string ("resource.op:scope") and warns on
+ * unknown resources.
+ */
+function lintPermissionEntry(
+  entry: PermissionEntry,
+  path: string,
+  bucket: "allowed" | "disallowed",
+  idx: number,
+): LintFinding | null {
+  if (typeof entry !== "string") return null;
+
+  const parsed = parsePermissionShortForm(entry);
+  if (!parsed) {
+    return {
+      level: "error",
+      path,
+      message:
+        `permissions.${bucket}[${idx}] short-form "${entry}" does not parse. ` +
+        `Expected "<resource>.<op>:<scope>" or "<resource>:<scope>" (e.g. "fs.read:./src/**", "network:api.github.com").`,
+      rule: "permission-short-form",
+    };
+  }
+  if (!PERMISSION_RESOURCES.has(parsed.resource as PermissionResource)) {
+    return {
+      level: "warning",
+      path,
+      message:
+        `permissions.${bucket}[${idx}] uses unknown resource "${parsed.resource}". ` +
+        `Closed v0.3 enum: ${[...PERMISSION_RESOURCES].sort().join(", ")}. ` +
+        `Unknown resources are tolerated but reduce the contract's audit value.`,
+      rule: "permission-resource-unknown",
+    };
+  }
+  return null;
+}
+
+/**
+ * Parse the short-form permission string. Format:
+ *   "<resource>.<op>:<scope>"   (e.g. "fs.read:./src/**")
+ *   "<resource>:<scope>"         (e.g. "network:api.github.com")
+ *   "<resource>"                 (bare, op="*", no scope)
+ */
+export function parsePermissionShortForm(
+  source: string,
+): { resource: string; op: string; scope?: string } | null {
+  const colonAt = source.indexOf(":");
+  const head = colonAt === -1 ? source : source.slice(0, colonAt);
+  const scope = colonAt === -1 ? undefined : source.slice(colonAt + 1);
+
+  if (!head) return null;
+
+  const dotAt = head.indexOf(".");
+  if (dotAt === -1) {
+    return { resource: head, op: "*", scope };
+  }
+  const resource = head.slice(0, dotAt);
+  const op = head.slice(dotAt + 1);
+  if (!resource || !op) return null;
+  return { resource, op, scope };
 }
 
 // Re-exported for callers that want to inspect the code sets directly.

@@ -55,12 +55,48 @@ The publisher's best prediction. The real agent may differ. Produced by judgment
 _Avoid_: Hint, suggestion, prediction
 
 **Authority rule**:
-A declarative rule in the contract that determines what the agent will do unilaterally vs. refuse vs. escalate. Each rule declares itself `deterministic` (→ PROMISE codes) or `judgment` (→ ESTIMATE codes).
+A declarative rule in the contract that determines what the agent will do unilaterally vs. refuse vs. escalate. Each rule declares itself `deterministic` (→ PROMISE codes) or `judgment` (→ ESTIMATE codes). Targets either a `skill` or a `tool`.
 _Avoid_: Permission, policy, ACL
 
 **Instant failure**:
 A condition the contract declares as rejected on sight, before any work is done. Always produces a PROMISE code (e.g., `OUT_OF_SCOPE`, `MISSING_INPUT`).
 _Avoid_: Early refusal, pre-check failure
+
+## Harness disclosure (v0.3)
+
+A contract describes both a *capability surface* (load-bearing promises a consumer programs against) and a *deployment* (informational facts about how the publisher implements the surface). The terms below split along that line. See ADR 0004 for the binding-vs-informational rule.
+
+**Harness** (informational):
+The runtime envelope the publisher uses to implement the agent — framework (`claude-code`, `openai-agents`, custom), model, runtime, and limits (max_tokens, max_turns, timeout). Stated for consumer reasoning about blast radius; not a binding promise. The publisher may swap harnesses in a minor version as long as the binding surface is unchanged.
+_Avoid_: Engine, container, runtime stack
+
+**Tool** (binding):
+A discrete capability the harness invokes during its work — `read_file`, `bash`, `web_fetch`. Distinct from a **skill** (a high-level external interaction the publisher exposes to consumers): a skill is what the consumer calls; tools are what the agent reaches for to fulfill it. Each tool declares an `input_schema`, an `output_schema`, and a `side_effects` list. Authority rules may target tools the same way they target skills.
+_Avoid_: Function, action, capability (overloaded), built-in
+
+**Hook** (binding):
+A declared lifecycle interception point — `before_skill`, `after_skill`, `pre_tool_use`, `post_tool_use`, `on_error`, `on_stop`. Each hook carries a `mode`: `observe` (read-only audit), `mutate` (may rewrite payload before continuing), or `block` (may halt the action). The mode is binding because a consumer's blast-radius reasoning changes entirely depending on whether a hook is silent or load-bearing.
+_Avoid_: Listener, callback, middleware
+
+**Permission** (binding):
+A static allow- or disallow- entry on a typed resource the harness operates against. Structured as `{resource, op, scope}` with a documented short-form (`"fs.read:./src/**"`). The resource set is a closed v0.3 enum: `fs`, `network`, `tool`, `mcp`, `env`, `secret`. Unknown resources produce lint warnings. Permissions express blanket policy; conditional behavior belongs in an authority rule.
+_Avoid_: ACL (overloaded), role, scope (alone), capability
+
+**Guardrail** (binding):
+A categorical refusal the publisher declares the agent will not cross — `refused_topics`, `refused_actions`, `required_authentication`. Coarser than authority rules; expresses commitments at the level of the entire agent, not a per-skill `when`-clause. A consumer reads guardrails before deciding whether to integrate at all.
+_Avoid_: Filter, policy (overloaded), safety check
+
+**MCP server** (informational):
+A Model Context Protocol server the harness loads to source tools from. Declares `name`, `endpoint`, `auth_posture`, and `allowed_tools[]` (the subset of the server's tools the harness will actually expose). Each tool sourced from MCP carries a `source: {kind: "mcp", server: "<name>"}` discriminator so the provenance and trust boundary are visible. Informational per ADR 0004 — swapping MCP servers does not require a major bump as long as the tools surface is preserved.
+_Avoid_: Tool server, plugin, integration
+
+**Secret declaration** (informational):
+A named env-var or credential the harness reads. The contract carries the *name* and *purpose* of each secret; never a value. Lets consumers reason about blast radius ("this agent reads `GITHUB_TOKEN`, so a successful prompt injection could exfiltrate repo metadata"). Informational; consumer integrations don't bind against secret names.
+_Avoid_: Credential, env (alone), token
+
+**Delegation** (informational):
+A pointer to another Airlock contract URL this agent may dispatch sub-work to (Claude-Code-style Task tool, multi-agent orchestration). Declared as `delegates_to: [<url>, ...]`. A transitive trust surface — a consumer who accepts this agent's promises is implicitly accepting the delegates' promises too. Informational because the publisher may add or remove delegates without changing what this agent itself does; the consumer is expected to fetch the linked contracts and reason about the trust chain.
+_Avoid_: Sub-agent, child, dependency (overloaded)
 
 ## Discovery and packaging
 

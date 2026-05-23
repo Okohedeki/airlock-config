@@ -12,18 +12,24 @@
 import {
   evaluateRequest,
   prepareContract,
-  synthesizeDetail,
+  synthesizeDetailEnvelope,
   type Verdict,
 } from "../pipeline/index.js";
 import type { AirlockContract } from "../validate/types.js";
 
 type Mode = "skills" | "preflight";
 
+type AirlockResult = {
+  verdict: Verdict;
+  /** "example" | "synthesized" | "none" — same as the sandbox's X-Airlock-Detail-Source header. */
+  detailSource: "example" | "synthesized" | "none";
+};
+
 type AirlockGlobal = {
   __AIRLOCK_CONTRACT__?: AirlockContract;
   airlock?: {
     contract: AirlockContract;
-    evaluate: (skillId: string, input: unknown, mode?: Mode) => Verdict;
+    evaluate: (skillId: string, input: unknown, mode?: Mode) => AirlockResult;
   };
 };
 
@@ -40,11 +46,15 @@ if (!contract) {
 
   g.airlock = {
     contract,
-    evaluate(skillId: string, input: unknown, mode: Mode = "skills"): Verdict {
+    evaluate(skillId: string, input: unknown, mode: Mode = "skills"): AirlockResult {
       const verdict = evaluateRequest(prepared, { skill: skillId, input });
-      if (mode === "preflight") return verdict;
-      const detail = synthesizeDetail(contract, skillId, verdict);
-      return detail === undefined ? verdict : { ...verdict, detail };
+      if (mode === "preflight") {
+        return { verdict, detailSource: "none" };
+      }
+      const env = synthesizeDetailEnvelope(contract, skillId, verdict, input);
+      const withDetail: Verdict =
+        env.source === "none" ? verdict : { ...verdict, detail: env.value };
+      return { verdict: withDetail, detailSource: env.source };
     },
   };
 }

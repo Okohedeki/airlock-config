@@ -1,13 +1,16 @@
 /**
  * The sandbox engine. Stands up an HTTP server that responds to inbound calls
  * per the contract's authority rules. Zero model calls, zero tokens —
- * responses come from declarative rules + the contract's `examples`.
+ * responses come from declarative rules + the contract's `examples`, with a
+ * deterministic schema-derived faker as fallback (see ADR 0005).
  *
  * Routes:
  *   GET  /.well-known/airlock.yaml      The contract itself (raw)
- *   GET  /                              Human-friendly index (lists skills + endpoints)
+ *   GET  /                              Human-friendly index (lists skills, tools, endpoints)
  *   POST /skills/:skillId               Real call — runs the full pipeline, synthesizes a response
  *   POST /preflight/:skillId            Pre-flight verdict only (no side effects)
+ *   POST /tools/:toolId                 (v0.3) Simulate a tool invocation; verdict + faked output
+ *   POST /preflight-tool/:toolId        (v0.3) Tool-invocation verdict only
  *
  * Designed for `airlock sandbox <contract.yaml>` — single-tenant, single-contract,
  * single-process. Not a multi-tenant runtime; that's Layer 3.
@@ -18,9 +21,12 @@ import { readFileSync } from "node:fs";
 import type { AirlockContract } from "../validate/types.js";
 import {
   evaluateRequest,
+  evaluateToolCall,
   prepareContract,
-  synthesizeDetail,
+  synthesizeDetailEnvelope,
+  synthesizeToolEnvelope,
   type PreparedContract,
+  type SynthesizedDetail,
   type Verdict,
 } from "../pipeline/index.js";
 
@@ -108,10 +114,36 @@ async function handleRequest(
       writeJson(res, statusFromVerdict(verdict), verdict);
       return;
     }
-    // sandbox: synthesize detail from examples
-    const detail = synthesizeDetail(contract, skillId, verdict);
-    const withDetail: Verdict = detail === undefined ? verdict : { ...verdict, detail };
-    writeJson(res, statusFromVerdict(verdict), withDetail);
+    const envelope = synthesizeDetailEnvelope(contract, skillId, verdict, body.value);
+    const withDetail: Verdict =
+      envelope.source === "none" ? verdict : { ...verdict, detail: envelope.value };
+    writeJsonWithSource(res, statusFromVerdict(verdict), withDetail, envelope);
+    return;
+  }
+
+  // /tools/:toolId  or  /preflight-tool/:toolId  (v0.3)
+  const toolMatch = /^\/(tools|preflight-tool)\/([a-z][a-z0-9_]*)$/.exec(pathname);
+  if (method === "POST" && toolMatch) {
+    const mode = toolMatch[1] as "tools" | "preflight-tool";
+    const toolId = toolMatch[2]!;
+    const body = await readJsonBody(req);
+    if ("error" in body) {
+      writeJson(res, 400, {
+        code: "MALFORMED_INPUT",
+        binding: "PROMISE",
+        reason: body.error,
+      });
+      return;
+    }
+    const verdict = evaluateToolCall(prepared, { tool: toolId, input: body.value });
+    if (mode === "preflight-tool") {
+      writeJson(res, statusFromVerdict(verdict), verdict);
+      return;
+    }
+    const envelope = synthesizeToolEnvelope(contract, toolId, verdict, body.value);
+    const withDetail: Verdict =
+      envelope.source === "none" ? verdict : { ...verdict, detail: envelope.value };
+    writeJsonWithSource(res, statusFromVerdict(verdict), withDetail, envelope);
     return;
   }
 
@@ -150,11 +182,22 @@ function serveIndex(res: ServerResponse, contract: AirlockContract): void {
     lines.push(`  POST /preflight/${skill.id}     — verdict only, no side effect`);
     if (skill.description) lines.push(`  ${skill.description}`);
   }
+  if (contract.tools && contract.tools.length > 0) {
+    lines.push("");
+    lines.push("## Tools (internal harness capabilities)");
+    lines.push("");
+    for (const tool of contract.tools) {
+      lines.push(`- POST /tools/${tool.id}             — simulate a tool invocation`);
+      lines.push(`  POST /preflight-tool/${tool.id}    — invocation verdict only`);
+      if (tool.description) lines.push(`  ${tool.description}`);
+    }
+  }
   lines.push("");
   lines.push("## Status codes");
   lines.push("");
   lines.push("Every response carries { code, binding, reason, ref, [action], [detail] }.");
   lines.push("PROMISE codes are bound by the publisher; ESTIMATE codes are predictions.");
+  lines.push("Response header X-Airlock-Detail-Source distinguishes 'example' (authored) from 'synthesized' (schema-derived faker).");
   res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
   res.end(lines.join("\n"));
 }
@@ -198,6 +241,21 @@ function statusFromVerdict(v: Verdict): number {
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(body, null, 2));
+}
+
+function writeJsonWithSource(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  envelope: SynthesizedDetail,
+): void {
+  const headers: Record<string, string> = {
+    "content-type": "application/json; charset=utf-8",
+    "x-airlock-detail-source": envelope.source,
+  };
+  if (envelope.exampleName) headers["x-airlock-detail-example"] = envelope.exampleName;
+  res.writeHead(status, headers);
   res.end(JSON.stringify(body, null, 2));
 }
 
