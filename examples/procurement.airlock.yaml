@@ -8,10 +8,10 @@ agent:
     for inbound orders from known enterprise customers. Exposed over HTTP
     at /.well-known/airlock.yaml.
   channels: [http]
-  homepage: https://acme.example.com/agents/supplier
+  homepage: https://okohedeki.github.io/airlock/
   contact:
-    name: Acme Supplier Ops
-    email: agents@acme.example.com
+    name: Airlock procurement example
+    url: https://github.com/Okohedeki/airlock
 
 schemas:
   PurchaseOrder:

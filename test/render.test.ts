@@ -29,9 +29,12 @@ describe("buildFromFile", () => {
       expect(html).toContain("acme-supplier-agent");
       expect(html).toContain("confirm_po");
       expect(html).toContain("ACCEPTED_BY_RULE");
-      // The try-it form must be present so visitors can hit the local sandbox
+      // The try-it form must be present, configured for in-browser eval by default
       expect(html).toContain("try-it");
       expect(html).toContain("/skills/confirm_po");
+      // Inlined contract + playground bundle so the page is self-contained
+      expect(html).toContain("__AIRLOCK_CONTRACT__");
+      expect(html).toContain("window.airlock");
 
       const llms = readFileSync(join(out, ".well-known/airlock/llms.txt"), "utf-8");
       expect(llms).toContain("# acme-supplier-agent");

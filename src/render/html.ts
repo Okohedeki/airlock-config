@@ -23,7 +23,16 @@ const STATUS_CODE_GROUPS: Array<{ title: string; binding: string; codes: string[
   { title: "6. Actions taken (real responses)", binding: "n/a", codes: ["UNILATERAL_COMMIT", "COUNTER_OFFER", "PARTIAL_FULFILLMENT", "ESCALATED_TO_HUMAN"] },
 ];
 
-export function renderHTML(contract: AirlockContract): string {
+export type RenderHTMLOptions = {
+  /**
+   * The browser-bundled playground script (output of `npm run build:playground`).
+   * Inlined as `<script>` so the page evaluates contract verdicts client-side
+   * without a local sandbox. Required.
+   */
+  playgroundJs: string;
+};
+
+export function renderHTML(contract: AirlockContract, opts: RenderHTMLOptions): string {
   const title = contract.agent.name;
   return [
     `<!doctype html>`,
@@ -44,6 +53,8 @@ export function renderHTML(contract: AirlockContract): string {
     renderInstantFailures(contract),
     renderStatusCodes(),
     renderFooter(contract),
+    renderContractInline(contract),
+    renderPlaygroundBundle(opts.playgroundJs),
     renderTryItScript(),
     `</body></html>`,
   ].join("\n");
@@ -140,13 +151,17 @@ function renderTryIt(skill: Skill): string {
   return `
 <div class="try-it" data-skill="${escape(skill.id)}">
   <h4>Try it</h4>
-  <label>Sandbox URL</label>
-  <input type="text" class="sandbox-url" value="http://localhost:8080" placeholder="http://localhost:8080">
+  <p class="try-it-help">Runs in your browser — no server required. (Optional: tick the box to call a running sandbox instead.)</p>
   <label>Input JSON</label>
   <textarea class="payload">${escape(JSON.stringify(sample, null, 2))}</textarea>
-  <div>
-    <button class="run real">POST /skills/${escape(skill.id)}</button>
-    <button class="run preflight">POST /preflight/${escape(skill.id)}</button>
+  <div class="try-it-controls">
+    <button class="run real">Real call (/skills/${escape(skill.id)})</button>
+    <button class="run preflight">Pre-flight (/preflight/${escape(skill.id)})</button>
+    <label class="sandbox-toggle">
+      <input type="checkbox" class="use-sandbox">
+      Use sandbox URL instead
+    </label>
+    <input type="text" class="sandbox-url" value="http://localhost:8080" placeholder="http://localhost:8080" hidden>
   </div>
   <pre class="result" hidden></pre>
 </div>`.trim();
@@ -230,37 +245,85 @@ function renderFooter(c: AirlockContract): string {
   return `
 <footer>
   <p>${escape(contactLine)}</p>
-  <p>This page was generated from <code>airlock-contract.yaml</code> by the Airlock renderer. See <a href="https://github.com/airlock">Airlock</a> for the spec.</p>
+  <p>This page was generated from <code>airlock-contract.yaml</code> by the Airlock renderer. See <a href="https://github.com/Okohedeki/airlock">Airlock</a> for the spec.</p>
 </footer>`.trim();
 }
 
 function renderTryItScript(): string {
+  // The browser-side handler. Default: evaluate in-browser via window.airlock.
+  // Optional: tick "Use sandbox URL" to fetch a running sandbox instead.
   return `
 <script>
-document.querySelectorAll('.try-it').forEach(box => {
-  const skill = box.dataset.skill;
-  const url = () => box.querySelector('.sandbox-url').value.replace(/\\/$/, '');
-  const payload = () => box.querySelector('.payload').value;
-  const result = box.querySelector('.result');
-  const run = async (mode) => {
-    result.hidden = false;
-    result.textContent = 'requesting...';
+document.querySelectorAll('.try-it').forEach(function(box){
+  var skill = box.dataset.skill;
+  var payloadEl = box.querySelector('.payload');
+  var resultEl = box.querySelector('.result');
+  var useSandbox = box.querySelector('.use-sandbox');
+  var sandboxUrl = box.querySelector('.sandbox-url');
+
+  useSandbox.addEventListener('change', function(){
+    sandboxUrl.hidden = !useSandbox.checked;
+  });
+
+  function show(text){ resultEl.hidden = false; resultEl.textContent = text; }
+
+  function parseInput(){
+    try { return { ok: true, value: JSON.parse(payloadEl.value || '{}') }; }
+    catch (e) { return { ok: false, error: 'input is not valid JSON: ' + e.message }; }
+  }
+
+  async function runViaSandbox(mode, input){
+    var base = (sandboxUrl.value || '').replace(/\\/$/, '');
+    if (!base) { show('error: enter a sandbox URL or untick the box'); return; }
+    show('requesting ' + base + '/' + mode + '/' + skill + '...');
     try {
-      const res = await fetch(url() + '/' + mode + '/' + skill, {
+      var res = await fetch(base + '/' + mode + '/' + skill, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: payload(),
+        body: JSON.stringify(input)
       });
-      const json = await res.json();
-      result.textContent = '// HTTP ' + res.status + '\\n' + JSON.stringify(json, null, 2);
+      var json = await res.json();
+      show('// HTTP ' + res.status + ' (via sandbox)\\n' + JSON.stringify(json, null, 2));
     } catch (err) {
-      result.textContent = 'error: ' + (err && err.message ? err.message : err);
+      show('error: ' + (err && err.message ? err.message : err) + '\\n(is the sandbox running at ' + base + '?)');
     }
-  };
-  box.querySelector('.run.real').addEventListener('click', () => run('skills'));
-  box.querySelector('.run.preflight').addEventListener('click', () => run('preflight'));
+  }
+
+  function runInBrowser(mode, input){
+    if (!window.airlock) { show('error: in-browser evaluator did not load'); return; }
+    try {
+      var verdict = window.airlock.evaluate(skill, input, mode);
+      show('// in-browser eval\\n' + JSON.stringify(verdict, null, 2));
+    } catch (err) {
+      show('error: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  function run(mode){
+    var parsed = parseInput();
+    if (!parsed.ok) { show('error: ' + parsed.error); return; }
+    if (useSandbox.checked) runViaSandbox(mode, parsed.value);
+    else runInBrowser(mode, parsed.value);
+  }
+
+  box.querySelector('.run.real').addEventListener('click', function(){ run('skills'); });
+  box.querySelector('.run.preflight').addEventListener('click', function(){ run('preflight'); });
 });
 </script>`.trim();
+}
+
+function renderContractInline(contract: AirlockContract): string {
+  // Inline the contract as JSON so the playground bundle can read it from globalThis
+  // without an extra fetch. Use the </ escape trick to avoid breaking out of the
+  // script tag if the contract description contains '</script>'.
+  const json = JSON.stringify(contract).replace(/<\/script/gi, "<\\/script");
+  return `<script>window.__AIRLOCK_CONTRACT__ = ${json};</script>`;
+}
+
+function renderPlaygroundBundle(playgroundJs: string): string {
+  // Inline the playground bundle directly so the page is fully self-contained —
+  // no extra file fetch needed, works on any static host.
+  return `<script>${playgroundJs}</script>`;
 }
 
 function escape(s: string | undefined): string {

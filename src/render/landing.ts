@@ -21,7 +21,7 @@ export function renderLanding(contract: AirlockContract): string {
 <body>
 <header class="agent">
   <h1>${escape(contract.agent.name)}</h1>
-  <p class="version">v${escape(contract.agent.version)} · published as an <a href="https://github.com/airlock">Airlock</a> contract</p>
+  <p class="version">v${escape(contract.agent.version)} · published as an <a href="https://github.com/Okohedeki/airlock">Airlock</a> contract</p>
   ${contract.agent.description ? `<p class="description">${escape(contract.agent.description)}</p>` : ""}
 </header>
 <section>

@@ -73,4 +73,9 @@ footer a { color: var(--accent); }
 .try-it button { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: .5rem 1rem; font-size: .9rem; cursor: pointer; margin-top: .5rem; }
 .try-it button:hover { filter: brightness(.95); }
 .try-it pre.result { margin-top: .75rem; background: var(--code-bg); }
+.try-it .try-it-help { font-size: .85rem; color: var(--muted); margin: 0 0 .5rem; }
+.try-it-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin-top: .5rem; }
+.try-it-controls .sandbox-toggle { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--muted); margin: 0; }
+.try-it-controls .sandbox-toggle input { width: auto; }
+.try-it-controls .sandbox-url { flex: 1 1 220px; min-width: 200px; }
 `.trim();
