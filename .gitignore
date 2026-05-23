@@ -17,5 +17,12 @@ node_modules/
 
 # Build artifacts
 dist/
+dist-pages/
+pages-out/
 build/
 out/
+
+# Local tooling / agent state — not part of the project
+.agents/
+.claude/
+skills-lock.json

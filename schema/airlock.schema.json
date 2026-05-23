@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://airlock.dev/schema/0.1/airlock.schema.json",
+  "title": "Airlock Contract",
+  "description": "Schema for an Airlock contract: a self-declared specification of how an agent-driven service handles inbound traffic. See CONTEXT.md and docs/adr/ for the canonical terminology and decisions.",
+  "type": "object",
+  "required": ["airlock", "agent", "skills"],
+  "additionalProperties": false,
+  "properties": {
+    "airlock": {
+      "type": "string",
+      "description": "Airlock spec version this contract conforms to. SemVer.",
+      "pattern": "^\\d+\\.\\d+(\\.\\d+)?$"
+    },
+    "agent": { "$ref": "#/$defs/Agent" },
+    "schemas": {
+      "type": "object",
+      "description": "Reusable type definitions referenced by skills via $ref.",
+      "additionalProperties": { "$ref": "#/$defs/TypeDef" }
+    },
+    "skills": {
+      "type": "array",
+      "description": "The set of skills this agent exposes. Each skill is one named interaction.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Skill" }
+    },
+    "authority": {
+      "type": "array",
+      "description": "Declarative rules describing what the agent will do unilaterally vs. refuse vs. escalate. Each rule self-classifies its binding_class.",
+      "items": { "$ref": "#/$defs/AuthorityRule" }
+    },
+    "instant_failures": {
+      "type": "array",
+      "description": "Conditions that reject the request on sight, before any work. Always produce PROMISE codes.",
+      "items": { "$ref": "#/$defs/InstantFailure" }
+    },
+    "actions": { "$ref": "#/$defs/Actions" },
+    "sla": {
+      "type": "object",
+      "description": "Per-skill response time commitments. Keys are skill ids.",
+      "additionalProperties": { "$ref": "#/$defs/SLA" }
+    },
+    "lifecycle": { "$ref": "#/$defs/Lifecycle" },
+    "deprecation": { "$ref": "#/$defs/Deprecation" }
+  },
+
+  "$defs": {
+
+    "Agent": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Stable identifier for the agent. Recommend kebab-case.",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "version": {
+          "type": "string",
+          "description": "Contract version. SemVer. Major bumps require a deprecation block on the prior major.",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human and LLM-readable summary of what the agent does."
+        },
+        "channels": {
+          "type": "array",
+          "description": "Channels this contract is served over. v1 ships only the http adapter.",
+          "items": { "enum": ["http", "a2a", "email", "edi"] },
+          "default": ["http"],
+          "minItems": 1
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "description": "Publisher's landing page or product URL (for the rendered docs)."
+        },
+        "contact": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" },
+            "email": { "type": "string", "format": "email" }
+          }
+        }
+      }
+    },
+
+    "TypeDef": {
+      "description": "A JSON-Schema-compatible type definition. Airlock embeds JSON Schema as the type system.",
+      "type": "object"
+    },
+
+    "Skill": {
+      "type": "object",
+      "required": ["id", "input", "output"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the skill. Recommend snake_case.",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "description": { "type": "string" },
+        "input": {
+          "description": "JSON Schema for the input payload. Can be inline or a $ref into #/schemas.",
+          "type": "object"
+        },
+        "output": {
+          "description": "JSON Schema for the output payload on success.",
+          "type": "object"
+        },
+        "examples": {
+          "type": "array",
+          "description": "Worked examples. Used by the renderer (humans), the sandbox (synthetic responses), and the conformance runner (test fixtures).",
+          "items": { "$ref": "#/$defs/Example" }
+        }
+      }
+    },
+
+    "Example": {
+      "type": "object",
+      "required": ["in"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "in": { "description": "Example input payload." },
+        "out": { "description": "Expected output payload (for happy-path examples)." },
+        "expected_verdict": { "$ref": "#/$defs/ExpectedVerdict" }
+      }
+    },
+
+    "ExpectedVerdict": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "description": "What pre-flight should return for this example input. The conformance runner uses this as an assertion when the example's code is a PROMISE.",
+      "properties": {
+        "code": { "$ref": "#/$defs/StatusCode" },
+        "binding": { "enum": ["PROMISE", "ESTIMATE"] },
+        "ref": { "type": "string", "description": "Optional pointer to the rule expected to produce this verdict." }
+      }
+    },
+
+    "AuthorityRule": {
+      "type": "object",
+      "required": ["id", "skill", "binding_class", "when", "then"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier; referenced by `ref` in verdicts.",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "description": { "type": "string" },
+        "skill": {
+          "type": "string",
+          "description": "Skill id this rule applies to."
+        },
+        "field": {
+          "type": "string",
+          "description": "Optional: the input field the rule operates on (for docs rendering)."
+        },
+        "binding_class": {
+          "enum": ["deterministic", "judgment"],
+          "description": "Whether this rule's verdicts are PROMISE (deterministic) or ESTIMATE (judgment). The validator lints: deterministic rules may not reference runtime state."
+        },
+        "when": {
+          "type": "string",
+          "description": "Expression evaluated against the input. Must be in the tiny safe expression language: comparisons, arithmetic, logical, field refs, abs/min/max/len, regex match."
+        },
+        "then": { "$ref": "#/$defs/RuleOutcome" },
+        "else": { "$ref": "#/$defs/RuleOutcome" }
+      }
+    },
+
+    "RuleOutcome": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "$ref": "#/$defs/StatusCode" },
+        "action": { "$ref": "#/$defs/ActionCode" },
+        "escalate": { "enum": ["human", "fallback_agent"] },
+        "message": { "type": "string", "description": "Human/agent-readable reason." }
+      }
+    },
+
+    "InstantFailure": {
+      "type": "object",
+      "required": ["id", "when", "code"],
+      "additionalProperties": false,
+      "description": "Conditions that reject on sight. Always PROMISE — they must be deterministic by construction.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "description": { "type": "string" },
+        "skill": {
+          "type": "string",
+          "description": "Optional: scope this failure to a specific skill. Omit to apply to all skills."
+        },
+        "when": {
+          "type": "string",
+          "description": "Expression evaluated against the input (same tiny safe language as authority rules)."
+        },
+        "code": {
+          "description": "Must be a Phase 1 or Phase 2 code (identification or input validation).",
+          "enum": [
+            "OUT_OF_SCOPE", "WRONG_AGENT", "UNAUTHENTICATED", "UNAUTHORIZED",
+            "SCHEMA_INVALID", "MISSING_INPUT", "MALFORMED_INPUT"
+          ]
+        },
+        "message": { "type": "string" }
+      }
+    },
+
+    "Actions": {
+      "type": "object",
+      "description": "Catalog of foreign actions this agent may take in real responses.",
+      "additionalProperties": false,
+      "properties": {
+        "exposes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ActionCode" },
+          "uniqueItems": true
+        }
+      }
+    },
+
+    "SLA": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "respond_within": {
+          "type": "string",
+          "description": "Duration string (e.g. \"5m\", \"24h\", \"3d\"). Pre-flight to terminal lifecycle state.",
+          "pattern": "^\\d+(s|m|h|d)$"
+        },
+        "on_breach": {
+          "description": "What happens if the SLA is breached.",
+          "anyOf": [
+            { "$ref": "#/$defs/ActionCode" },
+            { "$ref": "#/$defs/StatusCode" }
+          ]
+        }
+      }
+    },
+
+    "Lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "states": {
+          "type": "array",
+          "description": "Lifecycle states this agent uses. Subset of Phase 5 codes.",
+          "items": {
+            "enum": [
+              "SUBMITTED", "WORKING", "INPUT_REQUIRED",
+              "COMPLETED", "FAILED", "CANCELED", "ESCALATED"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+
+    "Deprecation": {
+      "type": "object",
+      "description": "When set, this contract version is being phased out. Pre-flight against this version returns OUT_OF_SCOPE with the redirect in detail.",
+      "additionalProperties": false,
+      "required": ["replaced_by_url", "sunset"],
+      "properties": {
+        "replaced_by_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the contract that replaces this one."
+        },
+        "sunset": {
+          "type": "string",
+          "format": "date",
+          "description": "Date after which this contract is no longer honored."
+        },
+        "reason": { "type": "string" }
+      }
+    },
+
+    "StatusCode": {
+      "description": "All Airlock status codes across the 6 phases. Phases 1–3 are PROMISE; phase 4 is ESTIMATE; phases 5–6 are real-response only.",
+      "enum": [
+        "OUT_OF_SCOPE", "WRONG_AGENT", "UNAUTHENTICATED", "UNAUTHORIZED",
+        "SCHEMA_INVALID", "MISSING_INPUT", "MALFORMED_INPUT",
+        "ACCEPTED_BY_RULE", "REFUSED_BY_POLICY", "RATE_LIMITED",
+        "ACCEPTED_LIKELY", "COUNTER_OFFER_LIKELY", "HUMAN_REVIEW_LIKELY", "DEPENDS_ON_STATE",
+        "SUBMITTED", "WORKING", "INPUT_REQUIRED", "COMPLETED", "FAILED", "CANCELED", "ESCALATED"
+      ]
+    },
+
+    "ActionCode": {
+      "description": "Phase 6 action codes — what the agent actually did in a real response.",
+      "enum": [
+        "UNILATERAL_COMMIT",
+        "COUNTER_OFFER",
+        "PARTIAL_FULFILLMENT",
+        "ESCALATED_TO_HUMAN"
+      ]
+    }
+  }
+}
