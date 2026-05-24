@@ -14,6 +14,7 @@ const PATHS = [
   `${DEMO}/.well-known/airlock.yaml`,
   `${DEMO}/.well-known/airlock/`,
   `${DEMO}/.well-known/airlock/llms.txt`,
+  `${DEMO}/.well-known/agent-card.json`,
 ];
 
 async function status(url) {
@@ -60,6 +61,24 @@ const demoChecks = [
 for (const c of demoChecks) {
   console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
   if (!c.ok) failures.push(`demo content: ${c.label}`);
+}
+
+console.log();
+console.log("--- A2A Agent Card content checks ---");
+const cardRaw = await fetch(`${BASE}${DEMO}/.well-known/agent-card.json`).then((r) => r.text());
+let card;
+try { card = JSON.parse(cardRaw); } catch (e) { card = null; }
+const cardChecks = [
+  { label: "Agent Card parses as JSON", ok: card !== null },
+  { label: "id present and matches <name>@<version>", ok: card?.id === `${card?.name}@1.0.0` },
+  { label: "name = acme-supplier-agent", ok: card?.name === "acme-supplier-agent" },
+  { label: "skills array present", ok: Array.isArray(card?.skills) && card.skills.length > 0 },
+  { label: "securitySchemes derived from auth_model", ok: card?.securitySchemes && Object.keys(card.securitySchemes).length > 0 },
+  { label: "airlock-contract back-pointer extension present", ok: Array.isArray(card?.extensions) && card.extensions.some((e) => e.uri === "airlock-contract") },
+];
+for (const c of cardChecks) {
+  console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
+  if (!c.ok) failures.push(`agent-card: ${c.label}`);
 }
 
 console.log();

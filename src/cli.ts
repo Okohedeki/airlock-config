@@ -75,17 +75,28 @@ program
   .argument("<path>", "path to contract file")
   .option("-p, --port <port>", "port to listen on (default: 8080)", "8080")
   .option("-H, --host <host>", "host to bind (default: 127.0.0.1)", "127.0.0.1")
-  .action(async (path: string, opts: { port: string; host: string }) => {
+  .option("-c, --channel <channel>", "primary advertised transport: http | a2a | both (default: both)", "both")
+  .action(async (path: string, opts: { port: string; host: string; channel: string }) => {
     const port = Number(opts.port);
     if (!Number.isInteger(port) || port < 0) {
       process.stderr.write(`airlock: --port must be a non-negative integer, got "${opts.port}"\n`);
       process.exit(2);
     }
-    const sandbox = await startSandboxFromFile(path, { port, host: opts.host });
+    if (opts.channel !== "http" && opts.channel !== "a2a" && opts.channel !== "both") {
+      process.stderr.write(`airlock: --channel must be http | a2a | both, got "${opts.channel}"\n`);
+      process.exit(2);
+    }
+    const sandbox = await startSandboxFromFile(path, {
+      port,
+      host: opts.host,
+      channel: opts.channel as "http" | "a2a" | "both",
+    });
     process.stdout.write(`airlock sandbox listening at ${sandbox.url}\n`);
     process.stdout.write(`  GET  ${sandbox.url}/.well-known/airlock.yaml\n`);
+    process.stdout.write(`  GET  ${sandbox.url}/.well-known/agent-card.json    (A2A v1.0)\n`);
     process.stdout.write(`  POST ${sandbox.url}/skills/<skill_id>\n`);
     process.stdout.write(`  POST ${sandbox.url}/preflight/<skill_id>\n`);
+    process.stdout.write(`  POST ${sandbox.url}/a2a    (JSON-RPC 2.0: SendMessage, GetTask, CancelTask)\n`);
     process.stdout.write(`Ctrl+C to stop.\n`);
 
     process.on("SIGINT", () => {
@@ -178,6 +189,37 @@ program
     process.stdout.write(`built site with ${result.examples.length} examples in ${result.outDir}\n`);
     for (const f of result.files) {
       process.stdout.write(`  ${f}\n`);
+    }
+  });
+
+program
+  .command("agent-card")
+  .description("Derive an A2A v1.0 Agent Card from an Airlock contract")
+  .requiredOption("-c, --contract <path>", "path to contract file")
+  .requiredOption("-u, --url <url>", "URL where the contract is hosted (back-pointer extension uses this)")
+  .option("-e, --endpoint <url>", "override the A2A endpoint URL (defaults to a derivation of --url)")
+  .option("-o, --out <path>", "write the card to this file instead of stdout")
+  .action(async (opts: { contract: string; url: string; endpoint?: string; out?: string }) => {
+    const result = validateContractFile(opts.contract);
+    if (!result.ok || !result.contract) {
+      process.stderr.write(`Cannot build agent card — contract is invalid:\n`);
+      for (const issue of result.issues) {
+        process.stderr.write(`  ${issue.path}: ${issue.message}\n`);
+      }
+      process.exit(1);
+    }
+    const { buildAgentCard } = await import("./a2a/index.js");
+    const card = buildAgentCard(result.contract, {
+      contractUrl: opts.url,
+      ...(opts.endpoint ? { endpointUrl: opts.endpoint } : {}),
+    });
+    const text = JSON.stringify(card, null, 2) + "\n";
+    if (opts.out) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(opts.out, text);
+      process.stdout.write(`wrote ${opts.out}\n`);
+    } else {
+      process.stdout.write(text);
     }
   });
 

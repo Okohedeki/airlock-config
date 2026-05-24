@@ -102,6 +102,16 @@ _Avoid_: Title, label, name (overloaded)
 Free-form keywords on the contract itself. Indexed alongside the closed `category` block. Used for finer-grained discovery (a sub-region, an industry niche, a positioning term).
 _Avoid_: Labels, hashtags
 
+## A2A interop (v0.4.1)
+
+**Agent Card** (derived from the contract):
+The A2A v1.0 manifest a publisher serves at `/.well-known/agent-card.json` so A2A-speaking consumers can discover the agent without any Airlock-specific code. Always derived from the Airlock contract by `airlock build-site` — publishers never hand-author both files. The Agent Card carries name, description, endpoint, skill list, and security schemes; the Airlock contract carries everything else (category, region, compliance, pricing, authority rules with PROMISE/ESTIMATE bindings, etc). Cross-referenced via `extensions[].uri = "airlock-contract"`. See ADR 0007 and `docs/a2a-bridge.md`.
+_Avoid_: A2A manifest, A2A profile, agent.json (the older path — A2A v1.0 uses agent-card.json)
+
+**A2A wire** (the protocol layer):
+JSON-RPC 2.0 over HTTP + Server-Sent Events. v0.4.1's sandbox accepts `POST /a2a` and implements three methods: `SendMessage`, `GetTask`, `CancelTask`. Streaming and push notifications are deferred to v0.5. A2A is the wire; Airlock is the capability disclosure on top of it.
+_Avoid_: A2A gateway (forbidden — "gateway" stays banned per the Flagged Ambiguities section), A2A endpoint (overloaded with `endpoint_url`)
+
 ## Discovery and packaging
 
 **Well-known contract URL**:

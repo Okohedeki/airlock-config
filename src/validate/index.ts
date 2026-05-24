@@ -54,6 +54,7 @@ function checkAirlockVersion(input: unknown): ValidationIssue | null {
   const v = (input as { airlock?: unknown }).airlock;
   if (typeof v !== "string") return null;
   if (/^0\.4(\.\d+)?$/.test(v)) return null;
+  if (/^0\.5(\.\d+)?$/.test(v)) return null;
   if (/^0\.[123](\.\d+)?$/.test(v)) {
     return {
       kind: "structural",

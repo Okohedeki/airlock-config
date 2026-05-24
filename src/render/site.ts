@@ -21,6 +21,7 @@ import { renderHTML } from "./html.js";
 import { renderLLMs } from "./llms.js";
 import { renderLanding } from "./landing.js";
 import { renderHome } from "../home/index.js";
+import { buildAgentCard } from "../a2a/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PLAYGROUND_BUNDLE_PATHS = [
@@ -96,6 +97,14 @@ export function buildSite(opts: BuildSiteOptions = {}): BuildSiteResult {
     write(`${prefix}/.well-known/airlock/index.html`, renderHTML(contract, { playgroundJs }));
     write(`${prefix}/.well-known/airlock/llms.txt`, renderLLMs(contract, { contractURL: "../airlock.yaml" }));
     write(`${prefix}/index.html`, renderLanding(contract));
+
+    // A2A Agent Card derived from the same contract — published at A2A's
+    // native discovery path so A2A-speaking clients find it without any
+    // Airlock-specific code. See ADR 0007.
+    const agentCard = buildAgentCard(contract, {
+      contractUrl: `./${prefix}/.well-known/airlock.yaml`,
+    });
+    write(`${prefix}/.well-known/agent-card.json`, JSON.stringify(agentCard, null, 2));
 
     examples.push({ name: agentName, contractPath });
   }

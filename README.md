@@ -134,14 +134,56 @@ node dist/cli.js search --industry procurement --region eu-west --compliance SOC
 
 The registry is the existing v1 GitHub-list plan (single JSON file in a public repo, no accounts). v0.4 ships the entry-builder + the search command; the registry repo itself is the next milestone.
 
+## A2A interop (v0.4.1)
+
+Airlock composes with [A2A (Agent2Agent)](https://a2a-protocol.org/) — the open agent-to-agent protocol Google donated to the Linux Foundation, now backed by 150+ orgs. Airlock does **not** define its own wire protocol; A2A handles the wire (JSON-RPC 2.0 over HTTP) and the thin discovery card. Airlock handles the rich B2B capability surface.
+
+The bank scenario:
+
+```sh
+# The bank publishes its Airlock contract.
+# build-site emits BOTH files from one source contract:
+node dist/cli.js build-site --out ./dist-pages
+# → dist-pages/examples/acme-supplier-agent/.well-known/airlock.yaml          (the contract)
+# → dist-pages/examples/acme-supplier-agent/.well-known/agent-card.json       (derived A2A v1.0 Agent Card)
+
+# Run the sandbox — both transports active.
+node dist/cli.js sandbox examples/supplier-agent.airlock.yaml --channel both --port 8080
+```
+
+A consumer that only speaks A2A discovers and integrates with no Airlock-specific code:
+
+```sh
+# Discover.
+curl http://127.0.0.1:8080/.well-known/agent-card.json
+
+# Invoke a skill via A2A JSON-RPC.
+curl -X POST http://127.0.0.1:8080/a2a \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage",
+       "params":{"message":{"parts":[{"skill":"confirm_po",
+         "data":{"reference":"PO-1234","entity":"known-supplier-1","amount":100,"delivery_date_change_days":-2}}]}}}'
+# → { "jsonrpc":"2.0", "id":1,
+#     "result": { "id":"<task-id>", "state":"TASK_STATE_COMPLETED",
+#                 "artifact": { "verdict": {...}, "detail_source":"example" } } }
+```
+
+The Airlock Verdict rides inside the A2A Task's `artifact.verdict` body, so an Airlock-aware consumer still gets PROMISE/ESTIMATE binding semantics; an A2A-only consumer falls back to the `TaskState`.
+
+Full mapping (auth methods, verdict→TaskState, etc): [`docs/a2a-bridge.md`](./docs/a2a-bridge.md). Decision rationale: [ADR 0007](./docs/adr/0007-compose-with-a2a-do-not-reinvent-wire.md).
+
+**What MVP ships:** `SendMessage`, `GetTask`, `CancelTask`. Streaming, push notifications, and cryptographic Agent Card signing are deferred to v0.5.
+
 ## CLI surface
 
 ```
 airlock validate <contract>                                # JSON Schema + semantic lint
 airlock preflight <contract> --skill <id> --input <json>   # skill-call verdict, no side effect
-airlock sandbox <contract> --port 8080                     # local HTTP agent
+airlock sandbox <contract> --port 8080 --channel both      # local HTTP + A2A agent
 airlock check <contract> --url <live-agent-url>            # conformance
 airlock build <contract> --out ./dist                      # static bundle for a single contract
+airlock build-site --out ./dist                            # product site + every example bundle
+airlock agent-card --contract <path> --url <url>           # derive an A2A Agent Card
 airlock register-entry --contract <path> --url <url>       # emit a registry index entry
 airlock search [filters]                                   # query the registry
 ```

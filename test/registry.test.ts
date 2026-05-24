@@ -25,7 +25,7 @@ describe("buildRegistryEntry", () => {
 
     expect(entry.name).toBe("acme-supplier-agent");
     expect(entry.version).toBe("1.0.0");
-    expect(entry.airlock_spec).toBe("0.4");
+    expect(entry.airlock_spec).toBe("0.4.1");
     expect(entry.contract_url).toBe("https://example.com/.well-known/airlock.yaml");
     expect(entry.category.industry).toBe("procurement");
     expect(entry.category.capability).toBe("transaction_processing");

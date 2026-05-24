@@ -1,4 +1,4 @@
-airlock: "0.4"
+airlock: "0.4.1"
 
 agent:
   name: acme-supplier-agent
@@ -8,12 +8,25 @@ agent:
     queries on behalf of Acme Supplies Inc. Published as an Airlock contract
     so enterprise customers' procurement agents can discover and integrate
     without an onboarding call.
-  channels: [http]
+  channels: [http, a2a]
   homepage: https://example.com/agents/acme-supplier
   contact:
     name: Acme Supplies Partner Operations
     url: https://example.com/agents/acme-supplier/support
     email: partner-ops@example.com
+
+# INFORMATIONAL — bridge hints for the derived A2A v1.0 Agent Card (ADR 0007).
+# Most fields default sensibly from existing Airlock fields; this block is
+# entirely optional.
+a2a:
+  endpoint_url: https://example.com/agents/acme-supplier/a2a
+  documentation_url: https://example.com/agents/acme-supplier
+  capabilities:
+    streaming: false
+    push_notifications: false
+    state_transition_history: false
+  default_input_modes: [application/json]
+  default_output_modes: [application/json]
 
 category:
   industry: procurement

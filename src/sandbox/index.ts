@@ -25,11 +25,16 @@ import {
   type SynthesizedDetail,
   type Verdict,
 } from "../pipeline/index.js";
+import { A2AAdapter, buildAgentCard } from "../a2a/index.js";
+
+export type SandboxChannel = "http" | "a2a" | "both";
 
 export type SandboxOptions = {
   port?: number;
   host?: string;
   contractSource?: string;
+  /** Which transport the human index page advertises as primary. Both routes are always active. Default: "both". */
+  channel?: SandboxChannel;
 };
 
 export type RunningSandbox = {
@@ -44,14 +49,18 @@ export async function startSandbox(
   opts: SandboxOptions = {},
 ): Promise<RunningSandbox> {
   const prepared = prepareContract(contract);
+  const a2a = new A2AAdapter(contract);
+  const channel: SandboxChannel = opts.channel ?? "both";
   const server = createServer((req, res) => {
-    handleRequest(req, res, prepared, contract, opts.contractSource).catch((err) => {
-      writeJson(res, 500, {
-        code: "FAILED",
-        binding: "PROMISE",
-        reason: `internal error: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    });
+    handleRequest(req, res, prepared, contract, opts.contractSource, a2a, channel).catch(
+      (err) => {
+        writeJson(res, 500, {
+          code: "FAILED",
+          binding: "PROMISE",
+          reason: `internal error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      },
+    );
   });
 
   await new Promise<void>((resolve) => server.listen(opts.port ?? 0, opts.host ?? "127.0.0.1", resolve));
@@ -73,6 +82,8 @@ async function handleRequest(
   prepared: PreparedContract,
   contract: AirlockContract,
   contractSource: string | undefined,
+  a2a: A2AAdapter,
+  channel: SandboxChannel,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://_/");
   const method = req.method ?? "GET";
@@ -82,8 +93,23 @@ async function handleRequest(
     serveContract(res, contract, contractSource);
     return;
   }
+  if (method === "GET" && pathname === "/.well-known/agent-card.json") {
+    serveAgentCard(res, req, contract);
+    return;
+  }
   if (method === "GET" && pathname === "/") {
-    serveIndex(res, contract);
+    serveIndex(res, contract, channel);
+    return;
+  }
+
+  if (method === "POST" && pathname === "/a2a") {
+    const body = await readJsonBody(req);
+    if ("error" in body) {
+      writeJson(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: body.error } });
+      return;
+    }
+    const response = a2a.handle(body.value);
+    writeJson(res, 200, response);
     return;
   }
 
@@ -129,7 +155,18 @@ function serveContract(res: ServerResponse, contract: AirlockContract, contractS
   res.end(JSON.stringify(contract, null, 2));
 }
 
-function serveIndex(res: ServerResponse, contract: AirlockContract): void {
+function serveAgentCard(res: ServerResponse, req: IncomingMessage, contract: AirlockContract): void {
+  // Derive the contract URL from the request so the back-pointer extension is
+  // accurate when developers hit the sandbox via different hostnames.
+  const host = req.headers.host ?? "127.0.0.1";
+  const contractUrl = `http://${host}/.well-known/airlock.yaml`;
+  const endpointUrl = `http://${host}/a2a`;
+  const card = buildAgentCard(contract, { contractUrl, endpointUrl });
+  res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(card, null, 2));
+}
+
+function serveIndex(res: ServerResponse, contract: AirlockContract, channel: SandboxChannel): void {
   const lines: string[] = [
     `# ${contract.agent.name} — airlock sandbox`,
     "",
@@ -139,11 +176,20 @@ function serveIndex(res: ServerResponse, contract: AirlockContract): void {
     "",
     "## Discovery",
     "",
-    "- Contract:  GET  /.well-known/airlock.yaml",
-    "",
-    "## Skills",
+    "- Contract:    GET  /.well-known/airlock.yaml",
+    "- Agent Card:  GET  /.well-known/agent-card.json   (A2A v1.0)",
     "",
   ];
+
+  if (channel === "a2a" || channel === "both") {
+    lines.push("## A2A wire protocol");
+    lines.push("");
+    lines.push("- POST /a2a   — JSON-RPC 2.0; methods: SendMessage, GetTask, CancelTask");
+    lines.push("");
+  }
+
+  lines.push("## Skills (REST)");
+  lines.push("");
   for (const skill of contract.skills) {
     lines.push(`- POST /skills/${skill.id}        — real call (synthesized response)`);
     lines.push(`  POST /preflight/${skill.id}     — verdict only, no side effect`);

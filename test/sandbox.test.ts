@@ -96,6 +96,77 @@ describe("sandbox — HTTP server", () => {
   });
 });
 
+describe("sandbox — A2A routes (v0.4.1)", () => {
+  it("GET /.well-known/agent-card.json returns a valid Agent Card", async () => {
+    const res = await fetch(`${sandbox.url}/.well-known/agent-card.json`);
+    expect(res.status).toBe(200);
+    const card = await res.json() as any;
+    expect(card.id).toBe("acme-supplier-agent@1.0.0");
+    expect(card.name).toBe("acme-supplier-agent");
+    expect(card.url).toContain("/a2a");
+    expect(Array.isArray(card.skills)).toBe(true);
+    expect(card.skills.map((s: any) => s.name)).toEqual(
+      expect.arrayContaining(["confirm_po", "cancel_po", "query_inventory"]),
+    );
+    expect(card.extensions).toEqual([
+      expect.objectContaining({ uri: "airlock-contract" }),
+    ]);
+  });
+
+  it("POST /a2a SendMessage returns a Task with the Verdict in the artifact", async () => {
+    const res = await fetch(`${sandbox.url}/a2a`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "SendMessage",
+        params: {
+          message: {
+            parts: [
+              {
+                skill: "confirm_po",
+                data: {
+                  reference: "PO-1234",
+                  entity: "known-supplier-1",
+                  amount: 100,
+                  delivery_date_change_days: -2,
+                },
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    expect(body.jsonrpc).toBe("2.0");
+    expect(body.id).toBe(1);
+    expect(body.result.state).toBe("TASK_STATE_COMPLETED");
+    expect(body.result.artifact.verdict.code).toBe("ACCEPTED_BY_RULE");
+  });
+
+  it("POST /a2a SendStreamingMessage returns -32601 with v0.5 pointer", async () => {
+    const res = await fetch(`${sandbox.url}/a2a`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "SendMessage" }),
+    });
+    // sanity — SendMessage with no params is invalid params
+    const okShape = (await res.json()) as any;
+    expect(okShape.jsonrpc).toBe("2.0");
+
+    const deferred = await fetch(`${sandbox.url}/a2a`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "SendStreamingMessage" }),
+    });
+    const body = (await deferred.json()) as any;
+    expect(body.error.code).toBe(-32601);
+    expect(body.error.message).toContain("deferred to v0.5");
+  });
+});
+
 describe("sandbox — schema-derived faker fallback", () => {
   it("synthesises a schema-valid body when no example matches", async () => {
     // query_inventory has no examples → default ACCEPTED_LIKELY → 200

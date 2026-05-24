@@ -50,6 +50,24 @@ deprecation: { ... }    # BINDING — set when version is being phased out
 
 Only `airlock`, `agent`, `category`, and `skills` are required.
 
+## `a2a` (INFORMATIONAL, v0.4.1)
+
+Optional bridge hints for the derived A2A v1.0 Agent Card ([ADR 0007](./adr/0007-compose-with-a2a-do-not-reinvent-wire.md), [docs/a2a-bridge.md](./a2a-bridge.md)). Every field is optional; defaults derive from existing Airlock fields. The contract is the source of truth; `airlock build-site` derives `agent-card.json` next to `airlock.yaml`.
+
+```yaml
+a2a:
+  endpoint_url: https://example.com/agents/acme-supplier/a2a
+  documentation_url: https://example.com/agents/acme-supplier
+  capabilities:
+    streaming: false                   # v0.5: SendStreamingMessage support
+    push_notifications: false          # v0.5: webhook callbacks
+    state_transition_history: false
+  default_input_modes: [application/json]
+  default_output_modes: [application/json]
+```
+
+Per ADR 0004 this block is informational: changes never require a major version bump.
+
 ## `agent`
 
 ```yaml

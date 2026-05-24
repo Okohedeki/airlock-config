@@ -7,6 +7,7 @@ export type AirlockContract = {
   airlock: string;
   agent: Agent;
   category: Category;
+  a2a?: A2AInfo;
   region?: Region;
   compliance?: ComplianceEntry[];
   auth_model?: AuthModel;
@@ -22,6 +23,23 @@ export type AirlockContract = {
   sla?: Record<string, SLA>;
   lifecycle?: Lifecycle;
   deprecation?: Deprecation;
+};
+
+/**
+ * Optional A2A (Agent2Agent) bridge hints. Informational per ADR 0004/0007:
+ * derived Agent Card fields fall back to these when present, otherwise to
+ * sensible defaults computed from existing Airlock fields.
+ */
+export type A2AInfo = {
+  endpoint_url?: string;
+  documentation_url?: string;
+  capabilities?: {
+    streaming?: boolean;
+    push_notifications?: boolean;
+    state_transition_history?: boolean;
+  };
+  default_input_modes?: string[];
+  default_output_modes?: string[];
 };
 
 export type Agent = {

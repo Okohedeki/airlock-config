@@ -57,11 +57,23 @@ describe("buildSite (product home + every example)", () => {
           "examples/acme-supplier-agent/.well-known/airlock.yaml",
           "examples/acme-supplier-agent/.well-known/airlock/index.html",
           "examples/acme-supplier-agent/.well-known/airlock/llms.txt",
+          "examples/acme-supplier-agent/.well-known/agent-card.json",
           "examples/acme-supplier-agent/index.html",
           "examples/hello-agent/.well-known/airlock.yaml",
+          "examples/hello-agent/.well-known/agent-card.json",
           "examples/hello-agent/index.html",
         ]),
       );
+
+      // Agent Card is valid JSON and contains the expected v0.4.1 shape.
+      const cardRaw = readFileSync(
+        join(out, "examples/acme-supplier-agent/.well-known/agent-card.json"),
+        "utf-8",
+      );
+      const card = JSON.parse(cardRaw) as any;
+      expect(card.name).toBe("acme-supplier-agent");
+      expect(card.id).toBe("acme-supplier-agent@1.0.0");
+      expect(Array.isArray(card.skills)).toBe(true);
 
       const home = readFileSync(join(out, "index.html"), "utf-8");
       // Home page is the product page, not a per-contract page

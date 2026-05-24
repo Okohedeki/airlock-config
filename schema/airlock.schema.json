@@ -9,11 +9,12 @@
   "properties": {
     "airlock": {
       "type": "string",
-      "description": "Airlock spec version. v0.4 is current; v0.1/v0.2/v0.3 are rejected (see docs/migration-v03-to-v04.md).",
-      "pattern": "^0\\.4(\\.\\d+)?$"
+      "description": "Airlock spec version. v0.4 (and v0.4.x) accepted; v0.5 reserved for the upcoming signed-Agent-Card release. v0.1/v0.2/v0.3 are rejected (see docs/migration-v03-to-v04.md).",
+      "pattern": "^0\\.4(\\.\\d+)?$|^0\\.5(\\.\\d+)?$"
     },
     "agent": { "$ref": "#/$defs/Agent" },
     "category": { "$ref": "#/$defs/Category" },
+    "a2a": { "$ref": "#/$defs/A2AInfo" },
     "region": { "$ref": "#/$defs/Region" },
     "compliance": {
       "type": "array",
@@ -63,6 +64,43 @@
   },
 
   "$defs": {
+
+    "A2AInfo": {
+      "type": "object",
+      "description": "INFORMATIONAL (ADR 0004/0007). Optional bridge hints for the derived A2A Agent Card. All fields are optional; sensible defaults derive from existing Airlock fields.",
+      "additionalProperties": false,
+      "properties": {
+        "endpoint_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Where the sandbox / runtime accepts A2A JSON-RPC. Defaults to <agent.homepage>/a2a if absent."
+        },
+        "documentation_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Where a developer reads docs. Defaults to agent.homepage."
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "streaming": { "type": "boolean", "description": "Whether the agent responds to SendStreamingMessage. v0.4.1 MVP: always false." },
+            "push_notifications": { "type": "boolean", "description": "Whether the agent supports webhook callbacks. v0.4.1 MVP: always false." },
+            "state_transition_history": { "type": "boolean", "description": "Whether the agent persists task transition history. v0.4.1 MVP: always false." }
+          }
+        },
+        "default_input_modes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default media types accepted by skills. Defaults to ['application/json']."
+        },
+        "default_output_modes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default media types emitted by skills. Defaults to ['application/json']."
+        }
+      }
+    },
 
     "Agent": {
       "type": "object",
