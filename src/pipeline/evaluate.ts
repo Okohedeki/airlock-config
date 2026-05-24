@@ -13,7 +13,7 @@
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   AuthorityRule,
   InstantFailure,
 } from "../validate/types.js";
@@ -22,13 +22,13 @@ import type { Verdict } from "./verdict.js";
 import { buildInputValidators, findSkill, type InputValidator } from "./inputValidator.js";
 
 export type PreparedContract = {
-  contract: AirlockContract;
+  contract: AirlockConfig;
   inputValidators: Map<string, InputValidator>;
   /** Cached parsed expression ASTs, keyed by their source string. */
   exprCache: Map<string, ReturnType<typeof parseExpression>>;
 };
 
-export function prepareContract(contract: AirlockContract): PreparedContract {
+export function prepareContract(contract: AirlockConfig): PreparedContract {
   return {
     contract,
     inputValidators: buildInputValidators(contract),

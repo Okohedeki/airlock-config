@@ -3,11 +3,11 @@ import { resolve } from "node:path";
 import { validateContractFile } from "../src/validate/index.js";
 import { preflight } from "../src/preflight/index.js";
 import { evaluateRequest, prepareContract } from "../src/pipeline/index.js";
-import type { AirlockContract } from "../src/validate/types.js";
+import type { AirlockConfig } from "../src/validate/types.js";
 
-const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock.yaml");
+const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock-config.yaml");
 
-function loadSupplier(): AirlockContract {
+function loadSupplier(): AirlockConfig {
   const result = validateContractFile(SUPPLIER);
   if (!result.ok || !result.contract) {
     throw new Error(`supplier-agent example is not valid: ${JSON.stringify(result.issues, null, 2)}`);

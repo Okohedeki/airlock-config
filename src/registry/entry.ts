@@ -1,5 +1,5 @@
 /**
- * Build a registry index entry from a validated v0.4 contract.
+ * Build a registry index entry from a validated v0.5 Airlock Config contract.
  *
  * Pure function: takes a contract + the URL it's hosted at, returns the JSON
  * the publisher would PR into the registry repo. The registry never invents
@@ -8,7 +8,7 @@
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   AuthMethod,
   AuthorityRule,
   Capability,
@@ -23,8 +23,8 @@ export type RegistryEntry = {
   name: string;
   /** Contract version (SemVer) — agent.version. */
   version: string;
-  /** Airlock spec version (`0.4`...). */
-  airlock_spec: string;
+  /** Airlock Config spec version (`0.5`...). */
+  airlock_config_spec: string;
   /** URL the contract is served from. */
   contract_url: string;
   /** Free-text description (used for full-text relevance ranking). */
@@ -70,7 +70,7 @@ export type BuildEntryOptions = {
 };
 
 export function buildRegistryEntry(
-  contract: AirlockContract,
+  contract: AirlockConfig,
   contractUrl: string,
   opts: BuildEntryOptions = {},
 ): RegistryEntry {
@@ -82,7 +82,7 @@ export function buildRegistryEntry(
   const entry: RegistryEntry = {
     name: contract.agent.name,
     version: contract.agent.version,
-    airlock_spec: contract.airlock,
+    airlock_config_spec: contract.airlock_config,
     contract_url: contractUrl,
     description: contract.agent.description,
     category: {

@@ -3,10 +3,10 @@
  * first when they hit the GitHub Pages URL. Points to the well-known docs.
  */
 
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 import { STYLES } from "./styles.js";
 
-export function renderLanding(contract: AirlockContract): string {
+export function renderLanding(contract: AirlockConfig): string {
   const skillsList = contract.skills
     .map((s) => `<li><code>${escape(s.id)}</code>${s.description ? ` — ${escape(s.description)}` : ""}</li>`)
     .join("");
@@ -21,7 +21,7 @@ export function renderLanding(contract: AirlockContract): string {
 <body>
 <header class="agent">
   <h1>${escape(contract.agent.name)}</h1>
-  <p class="version">v${escape(contract.agent.version)} · published as an <a href="https://github.com/Okohedeki/airlock">Airlock</a> contract</p>
+  <p class="version">v${escape(contract.agent.version)} · published as an <a href="https://github.com/Okohedeki/airlock-config">Airlock Config</a> contract</p>
   ${contract.agent.description ? `<p class="description">${escape(contract.agent.description)}</p>` : ""}
 </header>
 <section>
@@ -31,9 +31,9 @@ export function renderLanding(contract: AirlockContract): string {
 <section>
   <h2>Get started</h2>
   <ul>
-    <li><strong>Read the docs</strong> — <a href="./.well-known/airlock/">/.well-known/airlock/</a></li>
-    <li><strong>Fetch the machine spec</strong> — <a href="./.well-known/airlock.yaml">/.well-known/airlock.yaml</a></li>
-    <li><strong>LLM-friendly bundle</strong> — <a href="./.well-known/airlock/llms.txt">/.well-known/airlock/llms.txt</a></li>
+    <li><strong>Read the docs</strong> — <a href="./.well-known/airlock-config/">/.well-known/airlock-config/</a></li>
+    <li><strong>Fetch the machine spec</strong> — <a href="./.well-known/airlock-config.yaml">/.well-known/airlock-config.yaml</a></li>
+    <li><strong>LLM-friendly bundle</strong> — <a href="./.well-known/airlock-config/llms.txt">/.well-known/airlock-config/llms.txt</a></li>
   </ul>
 </section>
 <section>
@@ -41,7 +41,7 @@ export function renderLanding(contract: AirlockContract): string {
   <ul>${skillsList}</ul>
 </section>
 <footer>
-  Generated from <code>airlock-contract.yaml</code> via <code>airlock build</code>.
+  Generated from <code>airlock-config.yaml</code> via <code>airlock-config build</code>.
 </footer>
 </body>
 </html>`;

@@ -1,8 +1,8 @@
-# Airlock taxonomies (v0.4)
+# Airlock Config taxonomies (v0.5)
 
-These are the closed vocabularies the schema enforces. Adding a value requires an ADR — drift across publishers breaks indexing.
+These are the closed vocabularies the schema enforces. Adding a value requires an ADR — drift across publishers breaks indexing. The vocabularies themselves carry over verbatim from v0.4; only the project name changed.
 
-> The schema's `enum` definitions in `schema/airlock.schema.json` and the type aliases in `src/validate/types.ts` mirror this document. This page is the source of truth for what the values *mean*.
+> The schema's `enum` definitions in `schema/airlock-config.schema.json` and the type aliases in `src/validate/types.ts` mirror this document. This page is the source of truth for what the values *mean*.
 
 ## `category.industry`
 

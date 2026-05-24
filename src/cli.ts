@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Airlock CLI entry point.
+ * Airlock Config CLI entry point.
  */
 
 import { readFileSync } from "node:fs";
@@ -26,13 +26,13 @@ import type {
 const program = new Command();
 
 program
-  .name("airlock")
-  .description("Contract format + tooling for self-deployed business agents")
-  .version("0.4.0");
+  .name("airlock-config")
+  .description("Config format + tooling for self-deployed business agents")
+  .version("0.5.0");
 
 program
   .command("validate")
-  .description("Validate an Airlock contract file (YAML or JSON)")
+  .description("Validate an Airlock Config contract file (YAML or JSON)")
   .argument("<path>", "path to contract file")
   .option("--json", "emit findings as JSON instead of human-readable output")
   .action((path: string, opts: { json?: boolean }) => {
@@ -79,11 +79,11 @@ program
   .action(async (path: string, opts: { port: string; host: string; channel: string }) => {
     const port = Number(opts.port);
     if (!Number.isInteger(port) || port < 0) {
-      process.stderr.write(`airlock: --port must be a non-negative integer, got "${opts.port}"\n`);
+      process.stderr.write(`airlock-config: --port must be a non-negative integer, got "${opts.port}"\n`);
       process.exit(2);
     }
     if (opts.channel !== "http" && opts.channel !== "a2a" && opts.channel !== "both") {
-      process.stderr.write(`airlock: --channel must be http | a2a | both, got "${opts.channel}"\n`);
+      process.stderr.write(`airlock-config: --channel must be http | a2a | both, got "${opts.channel}"\n`);
       process.exit(2);
     }
     const sandbox = await startSandboxFromFile(path, {
@@ -91,9 +91,9 @@ program
       host: opts.host,
       channel: opts.channel as "http" | "a2a" | "both",
     });
-    process.stdout.write(`airlock sandbox listening at ${sandbox.url}\n`);
-    process.stdout.write(`  GET  ${sandbox.url}/.well-known/airlock.yaml\n`);
-    process.stdout.write(`  GET  ${sandbox.url}/.well-known/agent-card.json    (A2A v1.0)\n`);
+    process.stdout.write(`airlock-config sandbox listening at ${sandbox.url}\n`);
+    process.stdout.write(`  GET  ${sandbox.url}/.well-known/airlock-config.yaml\n`);
+    process.stdout.write(`  GET  ${sandbox.url}/.well-known/agent-card.json        (A2A v1.0)\n`);
     process.stdout.write(`  POST ${sandbox.url}/skills/<skill_id>\n`);
     process.stdout.write(`  POST ${sandbox.url}/preflight/<skill_id>\n`);
     process.stdout.write(`  POST ${sandbox.url}/a2a    (JSON-RPC 2.0: SendMessage, GetTask, CancelTask)\n`);
@@ -128,7 +128,7 @@ program
       input = JSON.parse(inputRaw);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`airlock: --input is not valid JSON: ${message}\n`);
+      process.stderr.write(`airlock-config: --input is not valid JSON: ${message}\n`);
       process.exit(2);
     }
     const verdict = preflight(result.contract, { skill: opts.skill, input });
@@ -194,7 +194,7 @@ program
 
 program
   .command("agent-card")
-  .description("Derive an A2A v1.0 Agent Card from an Airlock contract")
+  .description("Derive an A2A v1.0 Agent Card from an Airlock Config contract")
   .requiredOption("-c, --contract <path>", "path to contract file")
   .requiredOption("-u, --url <url>", "URL where the contract is hosted (back-pointer extension uses this)")
   .option("-e, --endpoint <url>", "override the A2A endpoint URL (defaults to a derivation of --url)")
@@ -243,7 +243,7 @@ program
 
 program
   .command("search")
-  .description("Search the Airlock registry (filters compose with AND)")
+  .description("Search the Airlock Config registry (filters compose with AND)")
   .option("-q, --query <text>", "substring match against name + description")
   .option("--industry <value>", "filter by category.industry")
   .option("--capability <value>", "filter by category.capability")
@@ -286,7 +286,7 @@ program
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`airlock: ${message}\n`);
+  process.stderr.write(`airlock-config: ${message}\n`);
   process.exit(2);
 });
 

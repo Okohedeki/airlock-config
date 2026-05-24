@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import { validateContractFile } from "../src/validate/index.js";
 import { A2AAdapter, verdictToTaskState } from "../src/a2a/index.js";
-import type { AirlockContract } from "../src/validate/types.js";
+import type { AirlockConfig } from "../src/validate/types.js";
 
-const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock.yaml");
+const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock-config.yaml");
 
-function loadSupplier(): AirlockContract {
+function loadSupplier(): AirlockConfig {
   const result = validateContractFile(SUPPLIER);
   if (!result.ok || !result.contract) throw new Error("contract not valid");
   return result.contract;

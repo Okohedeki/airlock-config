@@ -1,8 +1,8 @@
-airlock: "0.4.1"
+airlock_config: "0.5"
 agent:
   name: hello-agent
   version: 0.1.0
-  description: The smallest legal Airlock contract — a single skill with no rules.
+  description: The smallest legal Airlock Config contract — a single skill with no rules.
 category:
   industry: other
   capability: other

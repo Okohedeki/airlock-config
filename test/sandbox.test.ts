@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import { startSandboxFromFile, type RunningSandbox } from "../src/sandbox/index.js";
 
-const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock.yaml");
+const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock-config.yaml");
 
 let sandbox: RunningSandbox;
 
@@ -28,8 +28,8 @@ async function call(
 }
 
 describe("sandbox — HTTP server", () => {
-  it("serves the contract at /.well-known/airlock.yaml", async () => {
-    const res = await fetch(`${sandbox.url}/.well-known/airlock.yaml`);
+  it("serves the contract at /.well-known/airlock-config.yaml", async () => {
+    const res = await fetch(`${sandbox.url}/.well-known/airlock-config.yaml`);
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain("acme-supplier-agent");
@@ -54,7 +54,7 @@ describe("sandbox — HTTP server", () => {
     });
     expect(status).toBe(200);
     expect(json.code).toBe("ACCEPTED_BY_RULE");
-    expect(headers.get("x-airlock-detail-source")).toBe("example");
+    expect(headers.get("x-airlock-config-detail-source")).toBe("example");
     expect(json.detail).toEqual({
       confirmation_id: "C-9001",
       confirmed_date: "2026-05-30",
@@ -109,7 +109,7 @@ describe("sandbox — A2A routes (v0.4.1)", () => {
       expect.arrayContaining(["confirm_po", "cancel_po", "query_inventory"]),
     );
     expect(card.extensions).toEqual([
-      expect.objectContaining({ uri: "airlock-contract" }),
+      expect.objectContaining({ uri: "airlock-config-contract" }),
     ]);
   });
 
@@ -173,7 +173,7 @@ describe("sandbox — schema-derived faker fallback", () => {
     const { status, json, headers } = await call("/skills/query_inventory", { sku: "SKU-42" });
     expect(status).toBe(200);
     expect(json.code).toBe("ACCEPTED_LIKELY");
-    expect(headers.get("x-airlock-detail-source")).toBe("synthesized");
+    expect(headers.get("x-airlock-config-detail-source")).toBe("synthesized");
     expect(json.detail).toBeDefined();
     const detail = json.detail as Record<string, unknown>;
     expect(detail.sku).toBe("SKU-42"); // input echo
@@ -192,6 +192,6 @@ describe("sandbox — schema-derived faker fallback", () => {
       amount: 100,
       delivery_date_change_days: -2,
     });
-    expect(headers.get("x-airlock-detail-source")).toBe("example");
+    expect(headers.get("x-airlock-config-detail-source")).toBe("example");
   });
 });

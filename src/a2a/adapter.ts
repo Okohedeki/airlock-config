@@ -10,7 +10,7 @@
  * Reference: A2A v1.0 §9.4 (Core Methods) and §4.1.3 (TaskState).
  */
 
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 import type { Verdict } from "../pipeline/index.js";
 import type { Task, TaskState } from "./tasks.js";
 import { TaskStore } from "./tasks.js";
@@ -40,10 +40,10 @@ export type JsonRpcError = {
 
 export class A2AAdapter {
   private prepared: PreparedContract;
-  private contract: AirlockContract;
+  private contract: AirlockConfig;
   private tasks = new TaskStore();
 
-  constructor(contract: AirlockContract) {
+  constructor(contract: AirlockConfig) {
     this.contract = contract;
     this.prepared = prepareContract(contract);
   }
@@ -178,8 +178,8 @@ function makeError(
 }
 
 /**
- * Map an Airlock Verdict's code to an A2A v1.0 TaskState. Mirrors the table
- * in docs/a2a-bridge.md.
+ * Map an Airlock Config Verdict's code to an A2A v1.0 TaskState. Mirrors the
+ * table in docs/a2a-bridge.md.
  */
 export function verdictToTaskState(verdict: Verdict): TaskState {
   switch (verdict.code) {

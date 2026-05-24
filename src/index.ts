@@ -1,8 +1,7 @@
 /**
- * Public library surface for Airlock.
+ * Public library surface for Airlock Config.
  *
- * v1 currently exports the validator. Subsequent build-order steps add the
- * behavior engine, sandbox, pre-flight, conformance runner, codegen, and renderer.
+ * Exports the validator, sandbox, pre-flight, conformance runner, and renderer.
  */
 
 export {
@@ -10,7 +9,7 @@ export {
   validateContractFile,
   type ValidationResult,
   type ValidationIssue,
-  type AirlockContract,
+  type AirlockConfig,
   type StructuralError,
   type LintFinding,
 } from "./validate/index.js";

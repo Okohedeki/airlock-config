@@ -1,5 +1,5 @@
 /**
- * Render an Airlock contract to a static HTML docs portal.
+ * Render an Airlock Config contract to a static HTML docs portal.
  *
  * Output is a single self-contained HTML page. No external resources (no
  * fonts, no JS frameworks, no analytics). The "try it" form is vanilla JS
@@ -7,7 +7,7 @@
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   AuthorityRule,
   AuthModel,
   Category,
@@ -34,7 +34,7 @@ export type RenderHTMLOptions = {
   playgroundJs: string;
 };
 
-export function renderHTML(contract: AirlockContract, opts: RenderHTMLOptions): string {
+export function renderHTML(contract: AirlockConfig, opts: RenderHTMLOptions): string {
   const title = contract.agent.name;
   return [
     `<!doctype html>`,
@@ -42,7 +42,7 @@ export function renderHTML(contract: AirlockContract, opts: RenderHTMLOptions): 
     `<head>`,
     `<meta charset="utf-8">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
-    `<title>${escape(title)} — Airlock contract</title>`,
+    `<title>${escape(title)} — Airlock Config contract</title>`,
     `<meta name="description" content="${escape(contract.agent.description ?? title)}">`,
     `<style>${STYLES}</style>`,
     `</head>`,
@@ -69,20 +69,20 @@ export function renderHTML(contract: AirlockContract, opts: RenderHTMLOptions): 
   ].join("\n");
 }
 
-function renderHeader(c: AirlockContract): string {
+function renderHeader(c: AirlockConfig): string {
   const homepage = c.agent.homepage
     ? `<p class="version"><a href="${escape(c.agent.homepage)}">${escape(c.agent.homepage)}</a></p>`
     : "";
   return `
 <header class="agent">
   <h1>${escape(c.agent.name)}</h1>
-  <p class="version">Contract version <code>${escape(c.agent.version)}</code> · Airlock spec <code>${escape(c.airlock)}</code></p>
+  <p class="version">Contract version <code>${escape(c.agent.version)}</code> · Airlock Config spec <code>${escape(c.airlock_config)}</code></p>
   ${c.agent.description ? `<p class="description">${escape(c.agent.description)}</p>` : ""}
   ${homepage}
 </header>`.trim();
 }
 
-function renderTOC(c: AirlockContract): string {
+function renderTOC(c: AirlockConfig): string {
   const items: string[] = [
     `<li><a href="#category">Category</a></li>`,
   ];
@@ -213,24 +213,24 @@ function renderGuardrails(g: Guardrails | undefined): string {
 </section>`.trim();
 }
 
-function renderDiscovery(c: AirlockContract): string {
+function renderDiscovery(c: AirlockConfig): string {
   return `
 <section id="discovery">
   <h2>Discovery</h2>
   <p>This contract is published at well-known URLs. Consumers fetch them directly; no signup, no registry account.</p>
   <dl class="discovery">
     <dt>Machine spec</dt>
-    <dd>GET /.well-known/airlock.yaml</dd>
+    <dd>GET /.well-known/airlock-config.yaml</dd>
     <dt>This human-readable site</dt>
-    <dd>GET /.well-known/airlock/</dd>
+    <dd>GET /.well-known/airlock-config/</dd>
     <dt>LLM-friendly markdown bundle</dt>
-    <dd>GET /.well-known/airlock/llms.txt</dd>
+    <dd>GET /.well-known/airlock-config/llms.txt</dd>
     ${c.agent.channels && c.agent.channels.length > 0 ? `<dt>Channels</dt><dd>${c.agent.channels.join(", ")}</dd>` : ""}
   </dl>
 </section>`.trim();
 }
 
-function renderSkills(c: AirlockContract): string {
+function renderSkills(c: AirlockConfig): string {
   if (c.skills.length === 0) return "";
   return `
 <section id="skills">
@@ -239,7 +239,7 @@ function renderSkills(c: AirlockContract): string {
 </section>`.trim();
 }
 
-function renderSkill(skill: Skill, c: AirlockContract): string {
+function renderSkill(skill: Skill, c: AirlockConfig): string {
   const slaInfo = c.sla?.[skill.id];
   const slaLine = slaInfo
     ? `<p><strong>SLA:</strong> respond within <code>${escape(slaInfo.respond_within ?? "?")}</code>; on breach: <code>${escape(String(slaInfo.on_breach ?? "?"))}</code></p>`
@@ -292,7 +292,7 @@ function renderTryIt(skill: Skill): string {
 </div>`.trim();
 }
 
-function renderAuthority(c: AirlockContract): string {
+function renderAuthority(c: AirlockConfig): string {
   if (!c.authority || c.authority.length === 0) return "";
   return `
 <section id="authority">
@@ -328,7 +328,7 @@ function renderRule(r: AuthorityRule, _idx: number): string {
 </li>`.trim();
 }
 
-function renderInstantFailures(c: AirlockContract): string {
+function renderInstantFailures(c: AirlockConfig): string {
   if (!c.instant_failures || c.instant_failures.length === 0) return "";
   return `
 <section id="instant-failures">
@@ -378,7 +378,7 @@ function renderStatusCodes(): string {
 </section>`.trim();
 }
 
-function renderFooter(c: AirlockContract): string {
+function renderFooter(c: AirlockConfig): string {
   const contact = c.agent.contact;
   const contactLine = contact
     ? `Contact: ${[contact.name, contact.email, contact.url].filter(Boolean).join(" · ")}.`
@@ -386,7 +386,7 @@ function renderFooter(c: AirlockContract): string {
   return `
 <footer>
   <p>${escape(contactLine)}</p>
-  <p>This page was generated from <code>airlock-contract.yaml</code> by the Airlock renderer. See <a href="https://github.com/Okohedeki/airlock">Airlock</a> for the spec.</p>
+  <p>This page was generated from <code>airlock-config.yaml</code> by the Airlock Config renderer. See <a href="https://github.com/Okohedeki/airlock-config">Airlock Config</a> for the spec.</p>
 </footer>`.trim();
 }
 
@@ -422,7 +422,7 @@ document.querySelectorAll('.try-it').forEach(function(box){
         body: JSON.stringify(input)
       });
       var json = await res.json();
-      var src = res.headers.get('x-airlock-detail-source') || '';
+      var src = res.headers.get('x-airlock-config-detail-source') || '';
       var srcLine = src ? '// detail source: ' + src + '\\n' : '';
       show('// HTTP ' + res.status + ' (via sandbox)\\n' + srcLine + JSON.stringify(json, null, 2));
     } catch (err) {
@@ -431,9 +431,9 @@ document.querySelectorAll('.try-it').forEach(function(box){
   }
 
   function runInBrowser(mode, input){
-    if (!window.airlock) { show('error: in-browser evaluator did not load'); return; }
+    if (!window.airlockConfig) { show('error: in-browser evaluator did not load'); return; }
     try {
-      var result = window.airlock.evaluate(skill, input, mode);
+      var result = window.airlockConfig.evaluate(skill, input, mode);
       var src = result.detailSource ? '// detail source: ' + result.detailSource + '\\n' : '';
       show('// in-browser eval\\n' + src + JSON.stringify(result.verdict || result, null, 2));
     } catch (err) {
@@ -454,9 +454,9 @@ document.querySelectorAll('.try-it').forEach(function(box){
 </script>`.trim();
 }
 
-function renderContractInline(contract: AirlockContract): string {
+function renderContractInline(contract: AirlockConfig): string {
   const json = JSON.stringify(contract).replace(/<\/script/gi, "<\\/script");
-  return `<script>window.__AIRLOCK_CONTRACT__ = ${json};</script>`;
+  return `<script>window.__AIRLOCK_CONFIG_CONTRACT__ = ${json};</script>`;
 }
 
 function renderPlaygroundBundle(playgroundJs: string): string {

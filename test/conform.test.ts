@@ -4,7 +4,7 @@ import { startSandboxFromFile, type RunningSandbox } from "../src/sandbox/index.
 import { conform } from "../src/conform/index.js";
 import { validateContractFile } from "../src/validate/index.js";
 
-const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock.yaml");
+const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock-config.yaml");
 
 let sandbox: RunningSandbox;
 

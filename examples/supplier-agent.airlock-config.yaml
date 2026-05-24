@@ -1,13 +1,13 @@
-airlock: "0.4.1"
+airlock_config: "0.5"
 
 agent:
   name: acme-supplier-agent
   version: 1.0.0
   description: |
     Confirms purchase orders, accepts cancellations, and answers stock-on-hand
-    queries on behalf of Acme Supplies Inc. Published as an Airlock contract
-    so enterprise customers' procurement agents can discover and integrate
-    without an onboarding call.
+    queries on behalf of Acme Supplies Inc. Published as an Airlock Config
+    contract so enterprise customers' procurement agents can discover and
+    integrate without an onboarding call.
   channels: [http, a2a]
   homepage: https://example.com/agents/acme-supplier
   contact:

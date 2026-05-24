@@ -1,5 +1,5 @@
 /**
- * Validate an Airlock contract. Runs the two passes:
+ * Validate an Airlock Config contract. Runs the two passes:
  *   1. Structural (JSON Schema)
  *   2. Semantic lint
  *
@@ -11,7 +11,7 @@ import { parse as parseYaml } from "yaml";
 
 import { validateStructure, type StructuralError } from "./structural.js";
 import { lintContract, type LintFinding } from "./lint.js";
-import type { AirlockContract } from "./types.js";
+import type { AirlockConfig } from "./types.js";
 
 export type ValidationIssue =
   | ({ kind: "structural" } & StructuralError)
@@ -19,13 +19,13 @@ export type ValidationIssue =
 
 export type ValidationResult = {
   ok: boolean;
-  contract: AirlockContract | null;
+  contract: AirlockConfig | null;
   issues: ValidationIssue[];
 };
 
 export function validateContract(input: unknown): ValidationResult {
-  // Friendly migration message for pre-v0.3 contracts before structural noise.
-  const versionIssue = checkAirlockVersion(input);
+  // Friendly migration message for older contracts before structural noise.
+  const versionIssue = checkSpecVersion(input);
   if (versionIssue) {
     return { ok: false, contract: null, issues: [versionIssue] };
   }
@@ -39,7 +39,7 @@ export function validateContract(input: unknown): ValidationResult {
     };
   }
 
-  const contract = input as AirlockContract;
+  const contract = input as AirlockConfig;
   const lint = lintContract(contract);
   const issues: ValidationIssue[] = lint.findings.map((f) => ({
     kind: "lint",
@@ -49,22 +49,37 @@ export function validateContract(input: unknown): ValidationResult {
   return { ok: lint.ok, contract, issues };
 }
 
-function checkAirlockVersion(input: unknown): ValidationIssue | null {
+function checkSpecVersion(input: unknown): ValidationIssue | null {
   if (typeof input !== "object" || input === null) return null;
-  const v = (input as { airlock?: unknown }).airlock;
-  if (typeof v !== "string") return null;
-  if (/^0\.4(\.\d+)?$/.test(v)) return null;
-  if (/^0\.5(\.\d+)?$/.test(v)) return null;
-  if (/^0\.[123](\.\d+)?$/.test(v)) {
+
+  // v0.4 used the `airlock:` top-level key; v0.5 renamed it to `airlock_config:`.
+  // If we see the old key, give a one-shot migration hint instead of a wall of
+  // ajv errors about additional properties.
+  const legacy = (input as { airlock?: unknown }).airlock;
+  if (typeof legacy === "string") {
+    if (/^0\.[123](\.\d+)?$/.test(legacy)) {
+      return {
+        kind: "structural",
+        path: "/airlock",
+        message:
+          `contract declares airlock="${legacy}", but v0.5 is the current major. ` +
+          `See docs/migration-v03-to-v04.md and docs/migration-v04-to-v05.md for the field-by-field migration.`,
+        keyword: "version",
+      };
+    }
     return {
       kind: "structural",
       path: "/airlock",
       message:
-        `contract declares airlock="${v}", but v0.4 is the current major. ` +
-        `See docs/migration-v03-to-v04.md for the field-by-field migration.`,
+        `contract uses the v0.4 top-level key "airlock"; v0.5 renamed this to "airlock_config" and bumped the file extension to .airlock-config.yaml. ` +
+        `See docs/migration-v04-to-v05.md for the one-shot sed recipe.`,
       keyword: "version",
     };
   }
+
+  const v = (input as { airlock_config?: unknown }).airlock_config;
+  if (typeof v !== "string") return null;
+  if (/^0\.5(\.\d+)?$/.test(v)) return null;
   return null;
 }
 
@@ -91,6 +106,6 @@ export function validateContractFile(path: string): ValidationResult {
   return validateContract(parsed);
 }
 
-export type { AirlockContract } from "./types.js";
+export type { AirlockConfig } from "./types.js";
 export type { StructuralError } from "./structural.js";
 export type { LintFinding } from "./lint.js";

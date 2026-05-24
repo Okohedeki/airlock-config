@@ -1,8 +1,8 @@
 /**
  * Browser-side playground entry point.
  *
- * Reads the contract from `globalThis.__AIRLOCK_CONTRACT__` (inlined by the
- * renderer) and exposes `window.airlock.evaluate(skillId, input, mode)`.
+ * Reads the contract from `globalThis.__AIRLOCK_CONFIG_CONTRACT__` (inlined by
+ * the renderer) and exposes `window.airlockConfig.evaluate(skillId, input, mode)`.
  *
  * Pure client-side evaluation — no fetch, no localhost, no hosted runtime.
  * Same expression engine + pipeline as the Node sandbox, just bundled for
@@ -15,38 +15,38 @@ import {
   synthesizeDetailEnvelope,
   type Verdict,
 } from "../pipeline/index.js";
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 
 type Mode = "skills" | "preflight";
 
-type AirlockResult = {
+type AirlockConfigResult = {
   verdict: Verdict;
-  /** "example" | "synthesized" | "none" — same as the sandbox's X-Airlock-Detail-Source header. */
+  /** "example" | "synthesized" | "none" — same as the sandbox's X-Airlock-Config-Detail-Source header. */
   detailSource: "example" | "synthesized" | "none";
 };
 
-type AirlockGlobal = {
-  __AIRLOCK_CONTRACT__?: AirlockContract;
-  airlock?: {
-    contract: AirlockContract;
-    evaluate: (skillId: string, input: unknown, mode?: Mode) => AirlockResult;
+type AirlockConfigGlobal = {
+  __AIRLOCK_CONFIG_CONTRACT__?: AirlockConfig;
+  airlockConfig?: {
+    contract: AirlockConfig;
+    evaluate: (skillId: string, input: unknown, mode?: Mode) => AirlockConfigResult;
   };
 };
 
-const g = globalThis as typeof globalThis & AirlockGlobal;
-const contract = g.__AIRLOCK_CONTRACT__;
+const g = globalThis as typeof globalThis & AirlockConfigGlobal;
+const contract = g.__AIRLOCK_CONFIG_CONTRACT__;
 
 if (!contract) {
   // eslint-disable-next-line no-console
   console.error(
-    "[airlock playground] no __AIRLOCK_CONTRACT__ found on globalThis — was the contract inlined?",
+    "[airlock-config playground] no __AIRLOCK_CONFIG_CONTRACT__ found on globalThis — was the contract inlined?",
   );
 } else {
   const prepared = prepareContract(contract);
 
-  g.airlock = {
+  g.airlockConfig = {
     contract,
-    evaluate(skillId: string, input: unknown, mode: Mode = "skills"): AirlockResult {
+    evaluate(skillId: string, input: unknown, mode: Mode = "skills"): AirlockConfigResult {
       const verdict = evaluateRequest(prepared, { skill: skillId, input });
       if (mode === "preflight") {
         return { verdict, detailSource: "none" };

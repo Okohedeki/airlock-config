@@ -5,18 +5,18 @@
  * deterministic schema-derived faker as fallback (see ADR 0005).
  *
  * Routes:
- *   GET  /.well-known/airlock.yaml      The contract itself (raw)
- *   GET  /                              Human-friendly index (lists skills, endpoints)
- *   POST /skills/:skillId               Real call — runs the full pipeline, synthesizes a response
- *   POST /preflight/:skillId            Pre-flight verdict only (no side effects)
+ *   GET  /.well-known/airlock-config.yaml  The contract itself (raw)
+ *   GET  /                                 Human-friendly index (lists skills, endpoints)
+ *   POST /skills/:skillId                  Real call — runs the full pipeline, synthesizes a response
+ *   POST /preflight/:skillId               Pre-flight verdict only (no side effects)
  *
- * Designed for `airlock sandbox <contract.yaml>` — single-tenant, single-contract,
+ * Designed for `airlock-config sandbox <contract.yaml>` — single-tenant, single-contract,
  * single-process. Not a multi-tenant runtime; that's Layer 3.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { readFileSync } from "node:fs";
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 import {
   evaluateRequest,
   prepareContract,
@@ -45,7 +45,7 @@ export type RunningSandbox = {
 };
 
 export async function startSandbox(
-  contract: AirlockContract,
+  contract: AirlockConfig,
   opts: SandboxOptions = {},
 ): Promise<RunningSandbox> {
   const prepared = prepareContract(contract);
@@ -80,7 +80,7 @@ async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
   prepared: PreparedContract,
-  contract: AirlockContract,
+  contract: AirlockConfig,
   contractSource: string | undefined,
   a2a: A2AAdapter,
   channel: SandboxChannel,
@@ -89,7 +89,7 @@ async function handleRequest(
   const method = req.method ?? "GET";
   const pathname = url.pathname;
 
-  if (method === "GET" && pathname === "/.well-known/airlock.yaml") {
+  if (method === "GET" && pathname === "/.well-known/airlock-config.yaml") {
     serveContract(res, contract, contractSource);
     return;
   }
@@ -145,7 +145,7 @@ async function handleRequest(
   });
 }
 
-function serveContract(res: ServerResponse, contract: AirlockContract, contractSource: string | undefined): void {
+function serveContract(res: ServerResponse, contract: AirlockConfig, contractSource: string | undefined): void {
   if (contractSource !== undefined) {
     res.writeHead(200, { "content-type": "application/yaml; charset=utf-8" });
     res.end(contractSource);
@@ -155,20 +155,20 @@ function serveContract(res: ServerResponse, contract: AirlockContract, contractS
   res.end(JSON.stringify(contract, null, 2));
 }
 
-function serveAgentCard(res: ServerResponse, req: IncomingMessage, contract: AirlockContract): void {
+function serveAgentCard(res: ServerResponse, req: IncomingMessage, contract: AirlockConfig): void {
   // Derive the contract URL from the request so the back-pointer extension is
   // accurate when developers hit the sandbox via different hostnames.
   const host = req.headers.host ?? "127.0.0.1";
-  const contractUrl = `http://${host}/.well-known/airlock.yaml`;
+  const contractUrl = `http://${host}/.well-known/airlock-config.yaml`;
   const endpointUrl = `http://${host}/a2a`;
   const card = buildAgentCard(contract, { contractUrl, endpointUrl });
   res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(card, null, 2));
 }
 
-function serveIndex(res: ServerResponse, contract: AirlockContract, channel: SandboxChannel): void {
+function serveIndex(res: ServerResponse, contract: AirlockConfig, channel: SandboxChannel): void {
   const lines: string[] = [
-    `# ${contract.agent.name} — airlock sandbox`,
+    `# ${contract.agent.name} — airlock-config sandbox`,
     "",
     contract.agent.description ?? "",
     "",
@@ -176,7 +176,7 @@ function serveIndex(res: ServerResponse, contract: AirlockContract, channel: San
     "",
     "## Discovery",
     "",
-    "- Contract:    GET  /.well-known/airlock.yaml",
+    "- Contract:    GET  /.well-known/airlock-config.yaml",
     "- Agent Card:  GET  /.well-known/agent-card.json   (A2A v1.0)",
     "",
   ];
@@ -200,7 +200,7 @@ function serveIndex(res: ServerResponse, contract: AirlockContract, channel: San
   lines.push("");
   lines.push("Every response carries { code, binding, reason, ref, [action], [detail] }.");
   lines.push("PROMISE codes are bound by the publisher; ESTIMATE codes are predictions.");
-  lines.push("Response header X-Airlock-Detail-Source distinguishes 'example' (authored) from 'synthesized' (schema-derived faker).");
+  lines.push("Response header X-Airlock-Config-Detail-Source distinguishes 'example' (authored) from 'synthesized' (schema-derived faker).");
   res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
   res.end(lines.join("\n"));
 }
@@ -255,9 +255,9 @@ function writeJsonWithSource(
 ): void {
   const headers: Record<string, string> = {
     "content-type": "application/json; charset=utf-8",
-    "x-airlock-detail-source": envelope.source,
+    "x-airlock-config-detail-source": envelope.source,
   };
-  if (envelope.exampleName) headers["x-airlock-detail-example"] = envelope.exampleName;
+  if (envelope.exampleName) headers["x-airlock-config-detail-example"] = envelope.exampleName;
   res.writeHead(status, headers);
   res.end(JSON.stringify(body, null, 2));
 }

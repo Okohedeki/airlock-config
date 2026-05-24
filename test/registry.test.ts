@@ -7,14 +7,14 @@ import {
   type RegistryEntry,
 } from "../src/registry/index.js";
 
-const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock.yaml");
+const SUPPLIER = resolve(__dirname, "..", "examples", "supplier-agent.airlock-config.yaml");
 
 function loadSupplierEntry(): RegistryEntry {
   const result = validateContractFile(SUPPLIER);
   if (!result.ok || !result.contract) throw new Error("contract not valid");
   return buildRegistryEntry(
     result.contract,
-    "https://example.com/.well-known/airlock.yaml",
+    "https://example.com/.well-known/airlock-config.yaml",
     { now: () => new Date("2026-05-23T19:00:00Z") },
   );
 }
@@ -25,8 +25,8 @@ describe("buildRegistryEntry", () => {
 
     expect(entry.name).toBe("acme-supplier-agent");
     expect(entry.version).toBe("1.0.0");
-    expect(entry.airlock_spec).toBe("0.4.1");
-    expect(entry.contract_url).toBe("https://example.com/.well-known/airlock.yaml");
+    expect(entry.airlock_config_spec).toBe("0.5");
+    expect(entry.contract_url).toBe("https://example.com/.well-known/airlock-config.yaml");
     expect(entry.category.industry).toBe("procurement");
     expect(entry.category.capability).toBe("transaction_processing");
     expect(entry.category.subcategory).toBe("po-confirmation-and-fulfillment");
@@ -50,7 +50,7 @@ describe("buildRegistryEntry", () => {
 
   it("omits optional fields cleanly when the contract doesn't set them", () => {
     const minimalContract = {
-      airlock: "0.4",
+      airlock_config: "0.5",
       agent: { name: "noop", version: "0.1.0" },
       category: { industry: "other" as const, capability: "other" as const },
       skills: [{ id: "ping", input: {}, output: {} }],
@@ -77,7 +77,7 @@ describe("searchRegistry — filter composition", () => {
       {
         name: "fintech-quoter",
         version: "1.0.0",
-        airlock_spec: "0.4",
+        airlock_config_spec: "0.5",
         contract_url: "https://example.com/fintech",
         description: "Returns FX quotes",
         category: { industry: "fintech", capability: "lookup" },

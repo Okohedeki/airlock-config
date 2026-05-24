@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Airlock Config logo">
+  <title>Airlock Config</title>
+  <!-- Outer rounded square = the document/contract -->
+  <rect x="6" y="6" width="52" height="52" rx="10" ry="10" fill="#0f172a"/>
+  <!-- Inner doorway = the airlock passage -->
+  <path d="M22 18 h20 a4 4 0 0 1 4 4 v24 a0 0 0 0 1 0 0 h-28 a0 0 0 0 1 0 0 v-24 a4 4 0 0 1 4 -4 z" fill="#38bdf8"/>
+  <!-- Three signal bars = the three layers of disclosure (category / region / pricing) -->
+  <rect x="26" y="46" width="3" height="6" rx="1" fill="#0f172a"/>
+  <rect x="31" y="42" width="3" height="10" rx="1" fill="#0f172a"/>
+  <rect x="36" y="38" width="3" height="14" rx="1" fill="#0f172a"/>
+</svg>

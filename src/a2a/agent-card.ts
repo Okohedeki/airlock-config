@@ -1,23 +1,23 @@
 /**
- * Derive an A2A v1.0 Agent Card from a validated Airlock contract.
+ * Derive an A2A v1.0 Agent Card from a validated Airlock Config contract.
  *
- * Per ADR 0007 + ADR 0008-as-paragraph: the Airlock contract is the source of
- * truth; the Agent Card is derived. Publishers never hand-author both files —
- * `airlock build-site` writes both, and the per-contract `a2a` block in the
- * schema covers the few fields the Agent Card needs that aren't already
- * derivable from existing Airlock fields.
+ * Per ADR 0007: the Airlock Config contract is the source of truth; the Agent
+ * Card is derived. Publishers never hand-author both files —
+ * `airlock-config build-site` writes both, and the per-contract `a2a` block in
+ * the schema covers the few fields the Agent Card needs that aren't already
+ * derivable from existing Airlock Config fields.
  *
  * Reference: A2A v1.0 specification at https://a2a-protocol.org/latest/specification/
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   AuthMethod,
   Skill,
 } from "../validate/types.js";
 
 export type BuildAgentCardOptions = {
-  /** URL where the airlock.yaml is hosted; used to derive endpoint defaults + the back-pointer extension. */
+  /** URL where the airlock-config.yaml is hosted; used to derive endpoint defaults + the back-pointer extension. */
   contractUrl: string;
   /** Override the A2A endpoint URL; defaults to <contract.a2a.endpoint_url> ?? <contractUrl>/../a2a. */
   endpointUrl?: string;
@@ -81,7 +81,7 @@ export type AgentCardSignature = {
 };
 
 export function buildAgentCard(
-  contract: AirlockContract,
+  contract: AirlockConfig,
   opts: BuildAgentCardOptions,
 ): AgentCard {
   const a2a = contract.a2a ?? {};
@@ -109,7 +109,7 @@ export function buildAgentCard(
   const url = opts.endpointUrl ?? a2a.endpoint_url ?? deriveEndpointUrl(opts.contractUrl);
 
   const extensions: AgentCardExtension[] = [
-    { uri: "airlock-contract", value: opts.contractUrl },
+    { uri: "airlock-config-contract", value: opts.contractUrl },
   ];
 
   return {
@@ -142,11 +142,11 @@ function toAgentCardSkill(
 }
 
 /**
- * Map Airlock's auth_model.methods onto A2A's SecuritySchemes. Per the spec each
+ * Map Airlock Config's auth_model.methods onto A2A's SecuritySchemes. Per the spec each
  * named scheme appears in `securitySchemes` and the consumer picks any one of
  * them via the `security` requirements list.
  */
-function deriveSecurity(contract: AirlockContract): {
+function deriveSecurity(contract: AirlockConfig): {
   securitySchemes: Record<string, AgentCardSecurityScheme>;
   security: Array<Record<string, string[]>>;
 } {
@@ -212,7 +212,7 @@ function mapAuthMethod(method: AuthMethod): [string, AgentCardSecurityScheme] {
 }
 
 /**
- * Given a contract URL like https://bank.example.com/.well-known/airlock.yaml,
+ * Given a contract URL like https://bank.example.com/.well-known/airlock-config.yaml,
  * derive a sensible A2A endpoint at https://bank.example.com/a2a. Falls back to
  * the contract URL itself if parsing fails.
  */

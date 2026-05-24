@@ -13,13 +13,13 @@
  * doesn't leave consumers with an empty body.
  */
 
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 
 export type FakeOptions = {
   /** The schema to fake against (skill.output or tool.output_schema). */
   schema: Record<string, unknown>;
   /** The contract — needed to resolve `#/schemas/Foo` references. */
-  contract: AirlockContract;
+  contract: AirlockConfig;
   /** The inbound request payload. Used for same-name input echo. */
   input: unknown;
   /** Stable identifier used in the seed (skill or tool id). */
@@ -229,7 +229,7 @@ function readPath(root: unknown, path: string[]): unknown {
   return cur;
 }
 
-function resolveRef(ref: string, contract: AirlockContract): Record<string, unknown> | undefined {
+function resolveRef(ref: string, contract: AirlockConfig): Record<string, unknown> | undefined {
   // We only handle the in-contract ref form: "#/schemas/Foo".
   if (!ref.startsWith("#/schemas/")) return undefined;
   const key = ref.slice("#/schemas/".length);

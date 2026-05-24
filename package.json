@@ -1,12 +1,12 @@
 {
-  "name": "airlock",
-  "version": "0.1.0",
-  "description": "Contract format + open-source tooling for agent-driven services. Layer 1 + Layer 2 of the Airlock design.",
+  "name": "airlock-config",
+  "version": "0.5.0",
+  "description": "The config file format that lets AI agents discover and integrate with your business — without prior coordination. Schema + open-source toolchain.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "airlock": "./dist/cli.js"
+    "airlock-config": "./dist/cli.js"
   },
   "files": [
     "dist",

@@ -5,23 +5,23 @@
 
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import type { AirlockContract, Skill } from "../validate/types.js";
+import type { AirlockConfig, Skill } from "../validate/types.js";
 
 export type InputValidator = (input: unknown) =>
   | { ok: true }
   | { ok: false; errors: Array<{ path: string; message: string }> };
 
-export function buildInputValidators(contract: AirlockContract): Map<string, InputValidator> {
+export function buildInputValidators(contract: AirlockConfig): Map<string, InputValidator> {
   const ajv = new Ajv2020.default({ allErrors: true, strict: false });
   addFormats.default(ajv);
 
   const schemas = contract.schemas ?? {};
   ajv.addSchema(
     {
-      $id: "airlock://contract-schemas",
+      $id: "airlock-config://contract-schemas",
       $defs: schemas as Record<string, unknown>,
     },
-    "airlock://contract-schemas",
+    "airlock-config://contract-schemas",
   );
 
   const validators = new Map<string, InputValidator>();
@@ -46,7 +46,7 @@ export function buildInputValidators(contract: AirlockContract): Map<string, Inp
 
 /**
  * Walk a JSON Schema fragment and rewrite any `{ "$ref": "#/schemas/Foo" }`
- * into `{ "$ref": "airlock://contract-schemas#/$defs/Foo" }` so ajv can resolve
+ * into `{ "$ref": "airlock-config://contract-schemas#/$defs/Foo" }` so ajv can resolve
  * against the registered schemas bundle.
  */
 function rewriteRefs(node: unknown): unknown {
@@ -56,7 +56,7 @@ function rewriteRefs(node: unknown): unknown {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
     if (k === "$ref" && typeof v === "string" && v.startsWith("#/schemas/")) {
-      out.$ref = `airlock://contract-schemas#/$defs/${v.slice("#/schemas/".length)}`;
+      out.$ref = `airlock-config://contract-schemas#/$defs/${v.slice("#/schemas/".length)}`;
     } else {
       out[k] = rewriteRefs(v);
     }
@@ -65,6 +65,6 @@ function rewriteRefs(node: unknown): unknown {
 }
 
 // Exported only for callers that need to inspect the skill they validated against.
-export function findSkill(contract: AirlockContract, id: string): Skill | undefined {
+export function findSkill(contract: AirlockConfig, id: string): Skill | undefined {
   return contract.skills.find((s) => s.id === id);
 }

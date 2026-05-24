@@ -3,7 +3,7 @@
  * Schema cannot express. Assumes the input has already passed structural
  * validation, so types are sound.
  *
- * v0.4 lint surface:
+ * v0.5 lint surface (unchanged from v0.4):
  *   - skill refs (authority + instant_failures) resolve
  *   - rule binding_class matches outcome code phase
  *   - rule actions referenced by exposes are declared
@@ -15,7 +15,7 @@
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   AuthorityRule,
   Example,
   RuleOutcome,
@@ -48,7 +48,7 @@ export type LintResult =
 
 const ALLOWED_HELPERS = new Set(Object.keys(HELPERS));
 
-export function lintContract(contract: AirlockContract): LintResult {
+export function lintContract(contract: AirlockConfig): LintResult {
   const findings: LintFinding[] = [];
 
   const skillIds = new Set(contract.skills.map((s) => s.id));

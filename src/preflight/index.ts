@@ -6,10 +6,10 @@
  *   const result = preflight(contract, { skill: "confirm_po", input: {...} });
  *
  * CLI:
- *   airlock preflight contract.yaml --skill confirm_po --input '{"...":"..."}'
+ *   airlock-config preflight contract.yaml --skill confirm_po --input '{"...":"..."}'
  */
 
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 import {
   evaluateRequest,
   prepareContract,
@@ -17,7 +17,7 @@ import {
   type Verdict,
 } from "../pipeline/index.js";
 
-export function preflight(contract: AirlockContract, req: EvaluateInput): Verdict {
+export function preflight(contract: AirlockConfig, req: EvaluateInput): Verdict {
   const prepared = prepareContract(contract);
   return evaluateRequest(prepared, req);
 }

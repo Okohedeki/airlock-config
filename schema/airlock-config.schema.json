@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://airlock.dev/schema/0.4/airlock.schema.json",
-  "title": "Airlock Contract",
-  "description": "Schema for an Airlock contract: a self-declared, machine-readable disclosure of what a self-deployed business agent does, who it serves, and on what terms, packaged so other businesses' AI agents can discover and integrate without prior coordination. v0.4 reframes the schema around buyer-facing questions (category, region, compliance, auth_model, pricing) and removes the v0.3 harness-internal blocks. See CONTEXT.md, docs/adr/0006, and docs/taxonomies.md.",
+  "$id": "https://okohedeki.github.io/airlock-config/schema/0.5/airlock-config.schema.json",
+  "title": "Airlock Config Contract",
+  "description": "Schema for an Airlock Config contract: a self-declared, machine-readable disclosure of what a self-deployed business agent does, who it serves, and on what terms, packaged so other businesses' AI agents can discover and integrate without prior coordination. v0.5 renames the project to airlock-config (see docs/adr/0008); the v0.4 buyer-facing field set carries over verbatim (category, region, compliance, auth_model, pricing). See CONTEXT.md, docs/adr/0006, docs/adr/0008, and docs/taxonomies.md.",
   "type": "object",
-  "required": ["airlock", "agent", "category", "skills"],
+  "required": ["airlock_config", "agent", "category", "skills"],
   "additionalProperties": false,
   "properties": {
-    "airlock": {
+    "airlock_config": {
       "type": "string",
-      "description": "Airlock spec version. v0.4 (and v0.4.x) accepted; v0.5 reserved for the upcoming signed-Agent-Card release. v0.1/v0.2/v0.3 are rejected (see docs/migration-v03-to-v04.md).",
-      "pattern": "^0\\.4(\\.\\d+)?$|^0\\.5(\\.\\d+)?$"
+      "description": "Airlock Config spec version. v0.5 (and v0.5.x) accepted. v0.4 contracts used the legacy `airlock:` key and are rejected with a friendly hint (see docs/migration-v04-to-v05.md). v0.1/v0.2/v0.3 are rejected (see docs/migration-v03-to-v04.md).",
+      "pattern": "^0\\.5(\\.\\d+)?$"
     },
     "agent": { "$ref": "#/$defs/Agent" },
     "category": { "$ref": "#/$defs/Category" },

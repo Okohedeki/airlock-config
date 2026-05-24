@@ -16,7 +16,7 @@ import type {
 import type { RegistryEntry } from "./entry.js";
 
 export const DEFAULT_REGISTRY_URL =
-  "https://raw.githubusercontent.com/Okohedeki/airlock-registry/main/registry.json";
+  "https://raw.githubusercontent.com/Okohedeki/airlock-config-registry/main/registry.json";
 
 export type SearchFilters = {
   /** Substring match against name + description (case-insensitive). */

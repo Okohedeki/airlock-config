@@ -26,7 +26,7 @@ export type Task = {
   id: string;
   contextId?: string;
   state: TaskState;
-  /** The Airlock Verdict + synthesised body live in the artifact body. */
+  /** The Airlock Config Verdict + synthesised body live in the artifact body. */
   artifact: {
     verdict: Verdict;
     detail_source: "example" | "synthesized" | "none";

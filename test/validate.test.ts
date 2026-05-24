@@ -6,17 +6,17 @@ const EXAMPLES = resolve(__dirname, "..", "examples");
 
 describe("validateContractFile (example contracts)", () => {
   it("accepts the minimal example", () => {
-    const result = validateContractFile(resolve(EXAMPLES, "minimal.airlock.yaml"));
+    const result = validateContractFile(resolve(EXAMPLES, "minimal.airlock-config.yaml"));
     expect(result.ok, formatIssues(result)).toBe(true);
   });
 
   it("accepts the supplier-agent flagship example", () => {
-    const result = validateContractFile(resolve(EXAMPLES, "supplier-agent.airlock.yaml"));
+    const result = validateContractFile(resolve(EXAMPLES, "supplier-agent.airlock-config.yaml"));
     expect(result.ok, formatIssues(result)).toBe(true);
   });
 });
 
-describe("v0.4 version gate", () => {
+describe("v0.5 version gate", () => {
   for (const v of ["0.1", "0.2", "0.3"]) {
     it(`rejects a v${v} contract with a migration hint`, () => {
       const result = validateContract({
@@ -30,10 +30,25 @@ describe("v0.4 version gate", () => {
       ).toBe(true);
     });
   }
+
+  for (const v of ["0.4", "0.4.1"]) {
+    it(`rejects a v${v} contract (legacy "airlock" key) with a migration-v04-to-v05 hint`, () => {
+      const result = validateContract({
+        airlock: v,
+        agent: { name: "a", version: "0.1.0" },
+        category: { industry: "other", capability: "other" },
+        skills: [{ id: "ping", input: {}, output: {} }],
+      });
+      expect(result.ok).toBe(false);
+      expect(
+        result.issues.some((i) => i.message.includes("migration-v04-to-v05")),
+      ).toBe(true);
+    });
+  }
 });
 
 describe("structural validation", () => {
-  it("rejects a contract missing airlock spec version", () => {
+  it("rejects a contract missing airlock_config spec version", () => {
     const result = validateContract({
       agent: { name: "a", version: "0.1.0" },
       category: { industry: "other", capability: "other" },
@@ -44,7 +59,7 @@ describe("structural validation", () => {
 
   it("rejects a contract missing the required category block", () => {
     const result = validateContract({
-      airlock: "0.4",
+      airlock_config: "0.5",
       agent: { name: "a", version: "0.1.0" },
       skills: [{ id: "ping", input: {}, output: {} }],
     });
@@ -54,7 +69,7 @@ describe("structural validation", () => {
 
   it("rejects a contract missing skills", () => {
     const result = validateContract({
-      airlock: "0.4",
+      airlock_config: "0.5",
       agent: { name: "a", version: "0.1.0" },
       category: { industry: "other", capability: "other" },
     });
@@ -123,7 +138,7 @@ describe("structural validation", () => {
 
   it("rejects v0.3 agent.harness", () => {
     const result = validateContract({
-      airlock: "0.4",
+      airlock_config: "0.5",
       agent: { name: "a", version: "0.1.0", harness: { framework: "claude-code" } },
       category: { industry: "other", capability: "other" },
       skills: [{ id: "ping", input: {}, output: {} }],
@@ -131,7 +146,7 @@ describe("structural validation", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("rejects an authority rule with no skill (skill is required in v0.4)", () => {
+  it("rejects an authority rule with no skill (skill is required)", () => {
     const result = validateContract(baseContract({
       authority: [
         {
@@ -269,7 +284,7 @@ describe("semantic lint", () => {
 
 function baseContract(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
-    airlock: "0.4",
+    airlock_config: "0.5",
     agent: { name: "test-agent", version: "0.1.0" },
     category: { industry: "other", capability: "other" },
     skills: [{ id: "ping", input: {}, output: {} }],

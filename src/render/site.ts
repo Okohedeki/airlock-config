@@ -1,15 +1,15 @@
 /**
  * Build the full product site — the marketing home page at the root plus
- * one example contract bundle per `examples/*.airlock.yaml` published at
+ * one example contract bundle per `examples/*.airlock-config.yaml` published at
  * `examples/<agent-name>/...`.
  *
  * Layout:
- *   <out>/index.html                                           product home page
- *   <out>/.nojekyll                                            GitHub Pages dotfile passthrough
- *   <out>/examples/<agent>/index.html                          per-contract landing
- *   <out>/examples/<agent>/.well-known/airlock.yaml            machine spec
- *   <out>/examples/<agent>/.well-known/airlock/index.html      rendered docs portal
- *   <out>/examples/<agent>/.well-known/airlock/llms.txt        LLM-friendly bundle
+ *   <out>/index.html                                                  product home page
+ *   <out>/.nojekyll                                                   GitHub Pages dotfile passthrough
+ *   <out>/examples/<agent>/index.html                                 per-contract landing
+ *   <out>/examples/<agent>/.well-known/airlock-config.yaml            machine spec
+ *   <out>/examples/<agent>/.well-known/airlock-config/index.html      rendered docs portal
+ *   <out>/examples/<agent>/.well-known/airlock-config/llms.txt        LLM-friendly bundle
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
@@ -74,7 +74,7 @@ export function buildSite(opts: BuildSiteOptions = {}): BuildSiteResult {
 
   // 1. Bundle every example contract under examples/<agent-name>/
   const contractFiles = readdirSync(examplesDir)
-    .filter((f) => f.endsWith(".airlock.yaml") || f.endsWith(".airlock.json"))
+    .filter((f) => f.endsWith(".airlock-config.yaml") || f.endsWith(".airlock-config.json"))
     .sort();
 
   if (contractFiles.length === 0) {
@@ -93,16 +93,16 @@ export function buildSite(opts: BuildSiteOptions = {}): BuildSiteResult {
     const agentName = contract.agent.name;
     const prefix = `examples/${agentName}`;
 
-    write(`${prefix}/.well-known/airlock.yaml`, source);
-    write(`${prefix}/.well-known/airlock/index.html`, renderHTML(contract, { playgroundJs }));
-    write(`${prefix}/.well-known/airlock/llms.txt`, renderLLMs(contract, { contractURL: "../airlock.yaml" }));
+    write(`${prefix}/.well-known/airlock-config.yaml`, source);
+    write(`${prefix}/.well-known/airlock-config/index.html`, renderHTML(contract, { playgroundJs }));
+    write(`${prefix}/.well-known/airlock-config/llms.txt`, renderLLMs(contract, { contractURL: "../airlock-config.yaml" }));
     write(`${prefix}/index.html`, renderLanding(contract));
 
     // A2A Agent Card derived from the same contract — published at A2A's
     // native discovery path so A2A-speaking clients find it without any
-    // Airlock-specific code. See ADR 0007.
+    // Airlock-Config-specific code. See ADR 0007.
     const agentCard = buildAgentCard(contract, {
-      contractUrl: `./${prefix}/.well-known/airlock.yaml`,
+      contractUrl: `./${prefix}/.well-known/airlock-config.yaml`,
     });
     write(`${prefix}/.well-known/agent-card.json`, JSON.stringify(agentCard, null, 2));
 
@@ -111,10 +111,10 @@ export function buildSite(opts: BuildSiteOptions = {}): BuildSiteResult {
 
   // 2. Pick the featured example for the home-page CTA
   const featured =
-    opts.featuredExample ?? examples.find((e) => e.contractPath.endsWith("supplier-agent.airlock.yaml"))?.name
+    opts.featuredExample ?? examples.find((e) => e.contractPath.endsWith("supplier-agent.airlock-config.yaml"))?.name
     ?? examples[0]?.name;
   const demoContractPath = featured
-    ? `./examples/${featured}/.well-known/airlock/`
+    ? `./examples/${featured}/.well-known/airlock-config/`
     : undefined;
 
   // 3. Product home page at the root
@@ -133,5 +133,5 @@ export function buildSite(opts: BuildSiteOptions = {}): BuildSiteResult {
 }
 
 export function basenameWithoutExtension(p: string): string {
-  return basename(p).replace(/\.airlock\.(yaml|json)$/i, "");
+  return basename(p).replace(/\.airlock-config\.(yaml|json)$/i, "");
 }

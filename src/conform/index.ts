@@ -12,14 +12,14 @@
  *   const report = await conform(contract, "http://localhost:8080");
  *
  * Usage (CLI):
- *   airlock check contract.yaml --url http://localhost:8080
+ *   airlock-config check contract.yaml --url http://localhost:8080
  *
  * A green report is the "honest right now" attestation. Signed/portable
  * attestations are deferred to v1.1.
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   Example,
   Skill,
   StatusCode,
@@ -46,7 +46,7 @@ export type ConformReport = {
 };
 
 export async function conform(
-  contract: AirlockContract,
+  contract: AirlockConfig,
   baseUrl: string,
 ): Promise<ConformReport> {
   const cases: ConformCase[] = [];

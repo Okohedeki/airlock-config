@@ -1,7 +1,7 @@
 /**
  * Structural validation: pass 1 of the validator. Validates a parsed contract
- * against schema/airlock.schema.json using ajv. Catches missing required fields,
- * type errors, illegal enum values.
+ * against schema/airlock-config.schema.json using ajv. Catches missing required
+ * fields, type errors, illegal enum values.
  */
 
 import { readFileSync } from "node:fs";
@@ -13,7 +13,7 @@ import addFormats from "ajv-formats";
 const here = dirname(fileURLToPath(import.meta.url));
 // Layout: src/validate/structural.ts (dev) or dist/validate/structural.js (prod).
 // schema/ lives at the package root in both layouts.
-const SCHEMA_PATH = resolve(here, "..", "..", "schema", "airlock.schema.json");
+const SCHEMA_PATH = resolve(here, "..", "..", "schema", "airlock-config.schema.json");
 
 const schema = JSON.parse(readFileSync(SCHEMA_PATH, "utf-8"));
 

@@ -1,19 +1,19 @@
 // Verify the live GitHub Pages deployment.
 //
-// v0.4 site layout:
-//   /                                                          product home page (NOT a contract landing)
-//   /examples/acme-supplier-agent/                             per-contract landing
-//   /examples/acme-supplier-agent/.well-known/airlock.yaml     machine spec
-//   /examples/acme-supplier-agent/.well-known/airlock/         rendered docs
+// v0.5 site layout:
+//   /                                                                  product home page (NOT a contract landing)
+//   /examples/acme-supplier-agent/                                     per-contract landing
+//   /examples/acme-supplier-agent/.well-known/airlock-config.yaml      machine spec
+//   /examples/acme-supplier-agent/.well-known/airlock-config/          rendered docs
 
-const BASE = "https://okohedeki.github.io/airlock";
+const BASE = "https://okohedeki.github.io/airlock-config";
 const DEMO = "/examples/acme-supplier-agent";
 const PATHS = [
   "/",
   `${DEMO}/`,
-  `${DEMO}/.well-known/airlock.yaml`,
-  `${DEMO}/.well-known/airlock/`,
-  `${DEMO}/.well-known/airlock/llms.txt`,
+  `${DEMO}/.well-known/airlock-config.yaml`,
+  `${DEMO}/.well-known/airlock-config/`,
+  `${DEMO}/.well-known/airlock-config/llms.txt`,
   `${DEMO}/.well-known/agent-card.json`,
 ];
 
@@ -42,7 +42,7 @@ const home = await fetch(`${BASE}/`).then((r) => r.text());
 const homeChecks = [
   { label: "product home headline present", ok: home.includes("Make your business agent discoverable") },
   { label: "links to the sample contract", ok: home.includes("examples/acme-supplier-agent") },
-  { label: "does NOT inline a contract (home is not a contract page)", ok: !home.includes("__AIRLOCK_CONTRACT__") },
+  { label: "does NOT inline a contract (home is not a contract page)", ok: !home.includes("__AIRLOCK_CONFIG_CONTRACT__") },
 ];
 for (const c of homeChecks) {
   console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
@@ -51,10 +51,10 @@ for (const c of homeChecks) {
 
 console.log();
 console.log("--- Demo per-contract page checks ---");
-const demoHtml = await fetch(`${BASE}${DEMO}/.well-known/airlock/`).then((r) => r.text());
+const demoHtml = await fetch(`${BASE}${DEMO}/.well-known/airlock-config/`).then((r) => r.text());
 const demoChecks = [
-  { label: "playground bundle inlined", ok: demoHtml.includes("__AIRLOCK_CONTRACT__") && demoHtml.includes("window.airlock") },
-  { label: "v0.4 category section rendered", ok: demoHtml.toLowerCase().includes("category") && demoHtml.includes("procurement") },
+  { label: "playground bundle inlined", ok: demoHtml.includes("__AIRLOCK_CONFIG_CONTRACT__") && demoHtml.includes("window.airlockConfig") },
+  { label: "category section rendered", ok: demoHtml.toLowerCase().includes("category") && demoHtml.includes("procurement") },
   { label: "compliance entries rendered", ok: demoHtml.includes("SOC2_TYPE_2") },
   { label: "try-it form present", ok: demoHtml.includes("try-it") },
 ];
@@ -74,7 +74,7 @@ const cardChecks = [
   { label: "name = acme-supplier-agent", ok: card?.name === "acme-supplier-agent" },
   { label: "skills array present", ok: Array.isArray(card?.skills) && card.skills.length > 0 },
   { label: "securitySchemes derived from auth_model", ok: card?.securitySchemes && Object.keys(card.securitySchemes).length > 0 },
-  { label: "airlock-contract back-pointer extension present", ok: Array.isArray(card?.extensions) && card.extensions.some((e) => e.uri === "airlock-contract") },
+  { label: "airlock-config-contract back-pointer extension present", ok: Array.isArray(card?.extensions) && card.extensions.some((e) => e.uri === "airlock-config-contract") },
 ];
 for (const c of cardChecks) {
   console.log(`  ${c.ok ? "✓" : "✗"}  ${c.label}`);
@@ -83,7 +83,7 @@ for (const c of cardChecks) {
 
 console.log();
 console.log("--- llms.txt content checks ---");
-const llms = await fetch(`${BASE}${DEMO}/.well-known/airlock/llms.txt`).then((r) => r.text());
+const llms = await fetch(`${BASE}${DEMO}/.well-known/airlock-config/llms.txt`).then((r) => r.text());
 const llmsChecks = [
   { label: "Category section present", ok: llms.includes("## Category (binding)") },
   { label: "Compliance section present", ok: llms.includes("## Compliance (binding)") },
@@ -100,4 +100,4 @@ if (failures.length > 0) {
   for (const f of failures) console.error(`    ${f}`);
   process.exit(1);
 }
-console.log("✓ Live site is a v0.4 product home page with the demo contract under /examples/acme-supplier-agent/.");
+console.log("✓ Live site is the product home page with the demo contract under /examples/acme-supplier-agent/.");

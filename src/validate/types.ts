@@ -1,10 +1,10 @@
 /**
- * TypeScript types for an Airlock contract. These mirror schema/airlock.schema.json.
+ * TypeScript types for an Airlock Config contract. These mirror schema/airlock-config.schema.json.
  * The JSON Schema is the source of truth; these types are a convenience for in-code work.
  */
 
-export type AirlockContract = {
-  airlock: string;
+export type AirlockConfig = {
+  airlock_config: string;
   agent: Agent;
   category: Category;
   a2a?: A2AInfo;
@@ -28,7 +28,7 @@ export type AirlockContract = {
 /**
  * Optional A2A (Agent2Agent) bridge hints. Informational per ADR 0004/0007:
  * derived Agent Card fields fall back to these when present, otherwise to
- * sensible defaults computed from existing Airlock fields.
+ * sensible defaults computed from existing Airlock Config fields.
  */
 export type A2AInfo = {
   endpoint_url?: string;
@@ -174,7 +174,7 @@ export type BindingClass = "deterministic" | "judgment";
 export type Binding = "PROMISE" | "ESTIMATE";
 
 /**
- * Curated v0.4 vocabularies. Adding values requires an ADR.
+ * Curated v0.5 vocabularies (unchanged from v0.4). Adding values requires an ADR.
  * Mirror of docs/taxonomies.md.
  */
 

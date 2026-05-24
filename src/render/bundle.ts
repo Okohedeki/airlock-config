@@ -2,18 +2,18 @@
  * Produce the static bundle layout that gets pushed to GitHub Pages (or any
  * static host).
  *
- *   <outDir>/index.html                              landing page
- *   <outDir>/.well-known/airlock.yaml                machine spec (verbatim)
- *   <outDir>/.well-known/airlock/index.html          rendered docs portal
- *   <outDir>/.well-known/airlock/llms.txt            LLM-friendly bundle
- *   <outDir>/.nojekyll                               so GitHub Pages serves dotfiles
+ *   <outDir>/index.html                                     landing page
+ *   <outDir>/.well-known/airlock-config.yaml                 machine spec (verbatim)
+ *   <outDir>/.well-known/airlock-config/index.html           rendered docs portal
+ *   <outDir>/.well-known/airlock-config/llms.txt             LLM-friendly bundle
+ *   <outDir>/.nojekyll                                       so GitHub Pages serves dotfiles
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { AirlockContract } from "../validate/types.js";
+import type { AirlockConfig } from "../validate/types.js";
 import { validateContractFile } from "../validate/index.js";
 import { renderHTML } from "./html.js";
 import { renderLLMs } from "./llms.js";
@@ -47,7 +47,7 @@ export type BuildResult = {
 };
 
 export function buildStaticBundle(opts: {
-  contract: AirlockContract;
+  contract: AirlockConfig;
   contractSource: string;
   outDir: string;
 }): BuildResult {
@@ -63,19 +63,19 @@ export function buildStaticBundle(opts: {
   };
 
   // 1. Machine spec verbatim
-  write(".well-known/airlock.yaml", opts.contractSource);
+  write(".well-known/airlock-config.yaml", opts.contractSource);
 
   // 2. Rendered docs portal — embeds the contract + playground bundle so
   //    "Try it" works in the browser without a local sandbox.
   write(
-    ".well-known/airlock/index.html",
+    ".well-known/airlock-config/index.html",
     renderHTML(opts.contract, { playgroundJs }),
   );
 
   // 3. LLM-friendly markdown bundle
   write(
-    ".well-known/airlock/llms.txt",
-    renderLLMs(opts.contract, { contractURL: "../airlock.yaml" }),
+    ".well-known/airlock-config/llms.txt",
+    renderLLMs(opts.contract, { contractURL: "../airlock-config.yaml" }),
   );
 
   // 4. Landing page at the bundle root

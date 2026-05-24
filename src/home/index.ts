@@ -1,6 +1,6 @@
 /**
- * The product home page for Airlock — the marketing surface at the root of the
- * GitHub Pages deployment. Audience: business decision-makers (procurement
+ * The product home page for Airlock Config — the marketing surface at the root
+ * of the GitHub Pages deployment. Audience: business decision-makers (procurement
  * leads, partnership directors, ops heads) at companies considering whether
  * to publish their self-deployed agent.
  *
@@ -18,15 +18,15 @@ export type RenderHomeOptions = {
 };
 
 export function renderHome(opts: RenderHomeOptions = {}): string {
-  const repo = opts.repoUrl ?? "https://github.com/Okohedeki/airlock";
-  const demo = opts.demoContractPath ?? "./examples/supplier-agent/.well-known/airlock/";
+  const repo = opts.repoUrl ?? "https://github.com/Okohedeki/airlock-config";
+  const demo = opts.demoContractPath ?? "./examples/supplier-agent/.well-known/airlock-config/";
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airlock — make your business agent discoverable</title>
+<title>Airlock Config — make your business agent discoverable</title>
 <meta name="description" content="Publish one file describing your self-deployed agent. Other businesses' AI agents find you, pre-filter on industry, region, compliance, and pricing, and integrate without an onboarding call.">
 <style>${STYLES}
 .hero { padding: 3rem 0 2.5rem; }
@@ -60,13 +60,13 @@ details.tech[open] summary { margin-bottom: .75rem; }
     <a class="cta secondary" href="${repo}#end-to-end-demo">Publish your own</a>
     <a class="cta secondary" href="${repo}">View on GitHub</a>
   </div>
-  <p class="byline">An open contract format + open-source tooling. Apache-2.0. v0.4.</p>
+  <p class="byline">An open config format + open-source tooling. Apache-2.0. v0.5.</p>
 </header>
 
 <section class="problem">
   <h2>The problem</h2>
   <p>Every B2B integration today starts with a sales call, a security questionnaire, a Postman collection, and a quarter of back-and-forth before the first real request. The promise of agent-driven commerce — your AI agent talking to mine and getting something done — dies on that runway.</p>
-  <p>Airlock is the standard contract that closes the gap. The publishing business writes a YAML file describing what their agent does. The consuming business's agent fetches it, decides whether the categorisation, region, compliance, and pricing match, and integrates against documented promises. No onboarding call needed for the first 95% of integrations.</p>
+  <p>Airlock Config is the standard contract that closes the gap. The publishing business writes a YAML file describing what their agent does. The consuming business's agent fetches it, decides whether the categorisation, region, compliance, and pricing match, and integrates against documented promises. No onboarding call needed for the first 95% of integrations.</p>
 </section>
 
 <section>
@@ -74,15 +74,15 @@ details.tech[open] summary { margin-bottom: .75rem; }
   <div class="three-up">
     <div class="card">
       <h3>1. Publish a contract</h3>
-      <p>Drop a YAML file at <code>/.well-known/airlock.yaml</code> on your existing infra. Render docs with <code>airlock build</code>. Run a local sandbox with <code>airlock sandbox</code>.</p>
+      <p>Drop a YAML file at <code>/.well-known/airlock-config.yaml</code> on your existing infra. Render docs with <code>airlock-config build</code>. Run a local sandbox with <code>airlock-config sandbox</code>.</p>
     </div>
     <div class="card">
       <h3>2. List in the registry</h3>
-      <p>Emit a registry entry with <code>airlock register-entry</code>. PR it to the open GitHub-list registry. Your agent is now findable.</p>
+      <p>Emit a registry entry with <code>airlock-config register-entry</code>. PR it to the open GitHub-list registry. Your agent is now findable.</p>
     </div>
     <div class="card">
       <h3>3. Search and integrate</h3>
-      <p><code>airlock search --industry fintech --region eu-west --compliance SOC2_TYPE_2</code> — get a filtered list of matching agents, fetch the contract, and integrate.</p>
+      <p><code>airlock-config search --industry fintech --region eu-west --compliance SOC2_TYPE_2</code> — get a filtered list of matching agents, fetch the contract, and integrate.</p>
     </div>
   </div>
 </section>
@@ -105,23 +105,23 @@ details.tech[open] summary { margin-bottom: .75rem; }
 
 <details class="tech">
   <summary>For engineers: 60-second technical primer</summary>
-  <p>A contract is a YAML or JSON file conforming to <a href="${repo}/blob/main/schema/airlock.schema.json">airlock.schema.json</a>. The validator runs three passes (version gate, JSON-Schema structural, semantic lint). The sandbox stands up an HTTP server on the contract's skills with deterministic schema-derived response synthesis when no authored example matches (see <a href="${repo}/blob/main/docs/adr/0005-sandbox-falls-back-to-schema-derived-responses.md">ADR 0005</a>). Conformance verifies the live agent matches the contract's PROMISE verdicts.</p>
-  <pre><code>airlock validate    examples/supplier-agent.airlock.yaml
-airlock sandbox     examples/supplier-agent.airlock.yaml --port 8080
-airlock check       examples/supplier-agent.airlock.yaml --url http://127.0.0.1:8080
-airlock build       examples/supplier-agent.airlock.yaml --out ./dist
-airlock register-entry --contract ... --url ...
-airlock search --industry procurement --region eu-west</code></pre>
+  <p>A contract is a YAML or JSON file conforming to <a href="${repo}/blob/main/schema/airlock-config.schema.json">airlock-config.schema.json</a>. The validator runs three passes (version gate, JSON-Schema structural, semantic lint). The sandbox stands up an HTTP server on the contract's skills with deterministic schema-derived response synthesis when no authored example matches (see <a href="${repo}/blob/main/docs/adr/0005-sandbox-falls-back-to-schema-derived-responses.md">ADR 0005</a>). Conformance verifies the live agent matches the contract's PROMISE verdicts.</p>
+  <pre><code>airlock-config validate    examples/supplier-agent.airlock-config.yaml
+airlock-config sandbox     examples/supplier-agent.airlock-config.yaml --port 8080
+airlock-config check       examples/supplier-agent.airlock-config.yaml --url http://127.0.0.1:8080
+airlock-config build       examples/supplier-agent.airlock-config.yaml --out ./dist
+airlock-config register-entry --contract ... --url ...
+airlock-config search --industry procurement --region eu-west</code></pre>
   <p>Read more: <a href="${repo}/blob/main/docs/contract-schema.md">contract schema</a> · <a href="${repo}/blob/main/docs/taxonomies.md">taxonomies</a> · <a href="${repo}/tree/main/docs/adr">ADRs</a> · <a href="${repo}/blob/main/CONTEXT.md">glossary</a></p>
 </details>
 
 <section>
   <h2>Why now</h2>
-  <p>AI agents are about to do real B2B work. The OpenAPI / API-keys-and-sales-calls integration model was built for humans clicking through docs; it doesn't scale to thousands of agent-to-agent integrations per company per day. Airlock is the contract layer that lets that work happen safely and discoverably without a hosted gatekeeper in the middle.</p>
+  <p>AI agents are about to do real B2B work. The OpenAPI / API-keys-and-sales-calls integration model was built for humans clicking through docs; it doesn't scale to thousands of agent-to-agent integrations per company per day. Airlock Config is the contract layer that lets that work happen safely and discoverably without a hosted gatekeeper in the middle.</p>
 </section>
 
 <footer>
-  <p>Airlock is open source under Apache-2.0. <a href="${repo}">View on GitHub</a>.</p>
+  <p>Airlock Config is open source under Apache-2.0. <a href="${repo}">View on GitHub</a>.</p>
   <p>Not a hosted gateway, not a runtime, not a registry vendor — just a file format and the tools that read it. See <a href="${repo}/blob/main/docs/adr/0001-airlock-is-docs-not-runtime.md">ADR 0001</a>.</p>
 </footer>
 

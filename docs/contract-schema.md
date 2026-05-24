@@ -1,6 +1,6 @@
-# Airlock Contract Schema (v0.4)
+# Airlock Config Contract Schema (v0.5)
 
-The canonical JSON Schema lives at [`schema/airlock.schema.json`](../schema/airlock.schema.json). This document is the narrative companion. Where the two disagree, the JSON Schema wins.
+The canonical JSON Schema lives at [`schema/airlock-config.schema.json`](../schema/airlock-config.schema.json). This document is the narrative companion. Where the two disagree, the JSON Schema wins.
 
 For terminology and decisions, read these first:
 
@@ -9,13 +9,14 @@ For terminology and decisions, read these first:
 - [`docs/adr/0001`](./adr/0001-airlock-is-docs-not-runtime.md) — Layer 1+2 only, never a runtime gateway
 - [`docs/adr/0002`](./adr/0002-trustworthy-in-between-via-binding-codes.md) — PROMISE/ESTIMATE binding model
 - [`docs/adr/0003`](./adr/0003-publish-a-file-deployment-model.md) — static files at well-known URLs
-- [`docs/adr/0004`](./adr/0004-harness-fields-are-informational.md) — binding vs informational categories (revised in v0.4)
+- [`docs/adr/0004`](./adr/0004-harness-fields-are-informational.md) — binding vs informational categories
 - [`docs/adr/0005`](./adr/0005-sandbox-falls-back-to-schema-derived-responses.md) — the schema-derived faker
 - [`docs/adr/0006`](./adr/0006-b2b-indexable-capability-format.md) — the v0.4 reframe
+- [`docs/adr/0008`](./adr/0008-rename-to-airlock-config.md) — the v0.5 rename to `airlock-config`
 
 ## What a contract is
 
-An Airlock contract is a B2B disclosure document. A self-deployed business agent publishes it so other businesses' AI agents can discover and integrate without prior coordination. The contract answers a buyer's five questions:
+An Airlock Config contract is a B2B disclosure document. A self-deployed business agent publishes it so other businesses' AI agents can discover and integrate without prior coordination. The contract answers a buyer's five questions:
 
 1. **What does it do?** — `skills`, `authority`, `instant_failures`, `actions`, `sla`, `lifecycle`.
 2. **How is it categorised?** — `category` (industry + capability), `tags`.
@@ -28,7 +29,7 @@ Every binding field uses a closed vocabulary from `docs/taxonomies.md`. The regi
 ## Top-level shape
 
 ```yaml
-airlock: "0.4"          # spec version (v0.1/v0.2/v0.3 rejected)
+airlock_config: "0.5"   # spec version (v0.1/v0.2/v0.3/v0.4 rejected)
 agent: { ... }          # identity
 category: { ... }       # BINDING — required
 region: { ... }         # BINDING
@@ -48,19 +49,19 @@ lifecycle: { ... }      # BINDING — states this agent uses
 deprecation: { ... }    # BINDING — set when version is being phased out
 ```
 
-Only `airlock`, `agent`, `category`, and `skills` are required.
+Only `airlock_config`, `agent`, `category`, and `skills` are required.
 
-## `a2a` (INFORMATIONAL, v0.4.1)
+## `a2a` (INFORMATIONAL)
 
-Optional bridge hints for the derived A2A v1.0 Agent Card ([ADR 0007](./adr/0007-compose-with-a2a-do-not-reinvent-wire.md), [docs/a2a-bridge.md](./a2a-bridge.md)). Every field is optional; defaults derive from existing Airlock fields. The contract is the source of truth; `airlock build-site` derives `agent-card.json` next to `airlock.yaml`.
+Optional bridge hints for the derived A2A v1.0 Agent Card ([ADR 0007](./adr/0007-compose-with-a2a-do-not-reinvent-wire.md), [docs/a2a-bridge.md](./a2a-bridge.md)). Every field is optional; defaults derive from existing Airlock Config fields. The contract is the source of truth; `airlock-config build-site` derives `agent-card.json` next to `airlock-config.yaml`.
 
 ```yaml
 a2a:
   endpoint_url: https://example.com/agents/acme-supplier/a2a
   documentation_url: https://example.com/agents/acme-supplier
   capabilities:
-    streaming: false                   # v0.5: SendStreamingMessage support
-    push_notifications: false          # v0.5: webhook callbacks
+    streaming: false                   # SendStreamingMessage support (deferred)
+    push_notifications: false          # webhook callbacks (deferred)
     state_transition_history: false
   default_input_modes: [application/json]
   default_output_modes: [application/json]
@@ -273,7 +274,7 @@ lifecycle:
   states: [SUBMITTED, WORKING, COMPLETED, FAILED, ESCALATED]
 
 deprecation:
-  replaced_by_url: https://example.com/.well-known/airlock.yaml
+  replaced_by_url: https://example.com/.well-known/airlock-config.yaml
   sunset: "2026-12-31"
   reason: Migrated to v2 with revised authority rules.
 ```
@@ -294,8 +295,8 @@ Used in `authority[].when` and `instant_failures[].when`. Intentionally tiny —
 
 `POST /skills/<id>` returns the verdict envelope plus a `detail` body via one of two paths:
 
-1. **Example replay** — `X-Airlock-Detail-Source: example`. First authored example whose `expected_verdict.code` matches the verdict.
-2. **Schema-derived faker** — `X-Airlock-Detail-Source: synthesized`. Walks the output JSON Schema seeded by a hash of the input, echoes same-named input fields. Same input → same body. ADR 0005.
+1. **Example replay** — `X-Airlock-Config-Detail-Source: example`. First authored example whose `expected_verdict.code` matches the verdict.
+2. **Schema-derived faker** — `X-Airlock-Config-Detail-Source: synthesized`. Walks the output JSON Schema seeded by a hash of the input, echoes same-named input fields. Same input → same body. ADR 0005.
 
 `POST /preflight/<id>` skips synthesis and returns the verdict only.
 
@@ -313,7 +314,7 @@ Used in `authority[].when` and `instant_failures[].when`. Intentionally tiny —
 ## Minimal valid contract
 
 ```yaml
-airlock: "0.4"
+airlock_config: "0.5"
 agent:
   name: hello-agent
   version: 0.1.0
@@ -326,13 +327,11 @@ skills:
     output: { type: object, properties: { pong: { type: boolean } } }
 ```
 
-Three more lines than the v0.3 minimal: the `category` block is now required.
-
 ## Validator semantics
 
 Three passes:
 
-1. **Version gate** — `airlock: "0.1"`/`"0.2"`/`"0.3"` rejected with pointer to [docs/migration-v03-to-v04.md](./migration-v03-to-v04.md).
+1. **Version gate** — `airlock: "0.1"`/`"0.2"`/`"0.3"` rejected with pointer to [docs/migration-v03-to-v04.md](./migration-v03-to-v04.md). The legacy `airlock:` top-level key (used by v0.4) is also rejected with a pointer to [docs/migration-v04-to-v05.md](./migration-v04-to-v05.md).
 2. **Structural** — JSON Schema. Catches missing required fields, type errors, illegal codes, unknown enum values in closed vocabularies.
 3. **Semantic lint** — additional checks:
    - Skill refs in `authority`, `instant_failures`, `sla` keys resolve.
@@ -343,4 +342,4 @@ Three passes:
    - Guardrails terms warned against the recommended vocabulary.
    - Rules and instant_failures without `summary` warned (indexability).
 
-Passing validation is the first "this is a real Airlock contract" signal. Conformance against a real endpoint comes later and asserts binding blocks only.
+Passing validation is the first "this is a real Airlock Config contract" signal. Conformance against a real endpoint comes later and asserts binding blocks only.

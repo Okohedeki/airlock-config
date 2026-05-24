@@ -1,6 +1,6 @@
 /**
  * Tiny safe expression engine used for evaluating `when` clauses in Airlock
- * contracts (`authority` rules + `instant_failures`).
+ * Config contracts (`authority` rules + `instant_failures`).
  *
  * - No eval, no Function constructor, no I/O, no Turing-completeness.
  * - Whitelisted helpers: abs, min, max, len, matches.

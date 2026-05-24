@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { fakeFromSchema } from "../src/pipeline/faker.js";
-import type { AirlockContract } from "../src/validate/types.js";
+import type { AirlockConfig } from "../src/validate/types.js";
 
-function contract(schemas: Record<string, Record<string, unknown>> = {}): AirlockContract {
+function contract(schemas: Record<string, Record<string, unknown>> = {}): AirlockConfig {
   return {
-    airlock: "0.3",
+    airlock_config: "0.5",
     agent: { name: "test", version: "0.1.0" },
+    category: { industry: "other", capability: "other" },
     schemas,
     skills: [{ id: "noop", input: {}, output: {} }],
   };

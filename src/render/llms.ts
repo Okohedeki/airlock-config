@@ -1,5 +1,6 @@
 /**
- * Render an Airlock contract as a single LLM-friendly markdown bundle (llms.txt).
+ * Render an Airlock Config contract as a single LLM-friendly markdown bundle
+ * (llms.txt).
  *
  * Optimized for a consuming AI agent to read once and have everything it needs
  * to decide whether to integrate: category, region, compliance, auth, pricing,
@@ -7,7 +8,7 @@
  */
 
 import type {
-  AirlockContract,
+  AirlockConfig,
   AuthorityRule,
   AuthModel,
   Category,
@@ -20,7 +21,7 @@ import type {
   Skill,
 } from "../validate/types.js";
 
-export function renderLLMs(contract: AirlockContract, opts: { contractURL?: string } = {}): string {
+export function renderLLMs(contract: AirlockConfig, opts: { contractURL?: string } = {}): string {
   const out: string[] = [];
 
   out.push(`# ${contract.agent.name}`);
@@ -31,7 +32,7 @@ export function renderLLMs(contract: AirlockContract, opts: { contractURL?: stri
   out.push("## Metadata");
   out.push("");
   out.push(`- Contract version: \`${contract.agent.version}\``);
-  out.push(`- Airlock spec: \`${contract.airlock}\``);
+  out.push(`- Airlock Config spec: \`${contract.airlock_config}\``);
   if (contract.agent.channels) out.push(`- Channels: \`${contract.agent.channels.join(", ")}\``);
   if (contract.agent.homepage) out.push(`- Homepage: ${contract.agent.homepage}`);
   if (opts.contractURL) out.push(`- Machine spec: ${opts.contractURL}`);
@@ -64,7 +65,7 @@ export function renderLLMs(contract: AirlockContract, opts: { contractURL?: stri
   out.push("- **ESTIMATE** codes are predictions.");
   out.push("");
   out.push("For a pre-flight verdict without side effects, use `POST /preflight/<skill_id>`.");
-  out.push("Sandbox responses set `X-Airlock-Detail-Source` to `example` (authored example replay) or `synthesized` (deterministic schema-derived faker, ADR 0005).");
+  out.push("Sandbox responses set `X-Airlock-Config-Detail-Source` to `example` (authored example replay) or `synthesized` (deterministic schema-derived faker, ADR 0005).");
   out.push("");
 
   out.push("## Skills (binding)");
@@ -211,7 +212,7 @@ function renderGuardrails(g: Guardrails): string[] {
   return out;
 }
 
-function renderSkill(skill: Skill, _contract: AirlockContract): string[] {
+function renderSkill(skill: Skill, _contract: AirlockConfig): string[] {
   const out: string[] = [];
   out.push(`### ${skill.id} — \`POST /skills/${skill.id}\``);
   out.push("");

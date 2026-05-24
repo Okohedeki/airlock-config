@@ -12,7 +12,7 @@
  * label responses for the consumer.
  */
 
-import type { AirlockContract, Example } from "../validate/types.js";
+import type { AirlockConfig, Example } from "../validate/types.js";
 import type { Verdict } from "./verdict.js";
 import { findSkill } from "./inputValidator.js";
 import { fakeFromSchema } from "./faker.js";
@@ -28,7 +28,7 @@ export type SynthesizedDetail = {
  * Prefer synthesizeDetailEnvelope() so the source label is preserved.
  */
 export function synthesizeDetail(
-  contract: AirlockContract,
+  contract: AirlockConfig,
   skillId: string,
   verdict: Verdict,
   input?: unknown,
@@ -38,7 +38,7 @@ export function synthesizeDetail(
 }
 
 export function synthesizeDetailEnvelope(
-  contract: AirlockContract,
+  contract: AirlockConfig,
   skillId: string,
   verdict: Verdict,
   input?: unknown,

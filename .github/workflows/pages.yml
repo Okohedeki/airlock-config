@@ -1,10 +1,10 @@
-name: Publish Airlock site to GitHub Pages
+name: Publish Airlock Config site to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - "examples/**.airlock.yaml"
+      - "examples/**.airlock-config.yaml"
       - "src/**"
       - "schema/**"
       - "package.json"
