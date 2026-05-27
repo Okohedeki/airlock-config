@@ -2,7 +2,7 @@
 
 State + roadmap snapshot for `Okohedeki/airlock-config`. Read this when picking up after a context gap. The README is the marketing surface; this is the engineer's working memory.
 
-**Last updated:** 2026-05-26 (ecosystem cross-references + registry→airlock-directory alignment)
+**Last updated:** 2026-05-27 (added `.env.example`; prior: ecosystem cross-references + registry→airlock-directory alignment)
 
 ---
 
@@ -15,6 +15,7 @@ State + roadmap snapshot for `Okohedeki/airlock-config`. Read this when picking 
 - **v0.4.1:** Added **A2A v1.0 interop**. Airlock composes with the Agent2Agent protocol (the dominant open agent-to-agent standard — 150+ orgs, Linux Foundation governed). The bank scenario works end-to-end: a publisher emits a contract + a derived A2A Agent Card; the sandbox speaks both REST and A2A JSON-RPC. See ADR 0007 and `docs/a2a-bridge.md`.
 - **v0.5 (this session):** **Renamed the project to `airlock-config`.** Brand, repo, npm package, CLI, JSON Schema file, `.airlock-config.yaml` extension, `/.well-known/airlock-config.yaml` path, top-level `airlock_config:` YAML key, `X-Airlock-Config-*` HTTP headers, `airlock-config-contract` A2A extension URI — every externally observable surface. README rewritten to a paseo-style centered hero + badges + five-bullet selling points. See ADR 0008 and `docs/migration-v04-to-v05.md`. No backward-compat shim; the validator emits a friendly hint when it sees the legacy `airlock:` key and points at the migration doc.
 - **2026-05-26 (ecosystem):** Added the **airlock ecosystem** cross-reference table to the README (config · airlock · airlock-crypto · airlock-directory). **Aligned the searchable registry naming to `airlock-directory`** (was provisionally `airlock-config-registry`): README, the CONTEXT glossary ("registry" = the index *concept*, "airlock-directory" = the *repo*), and an ADR-0003 amendment. `airlock-config register-entry`/`search` is airlock-directory's v1 (GitHub-list) mechanism.
+- **2026-05-27 (env template):** Added a committed `.env.example` (with gitignored `.env`) across all three ecosystem repos. **config's is intentionally near-empty** — the core toolchain (validate/preflight/sandbox/build/agent-card/register-entry/search) needs **no credentials**: it's offline/static, registry listing is by PR, and `search` reads a public GitHub index. The only placeholder is a commented, not-yet-wired v0.6 Agent-Card signing key.
 
 ### v0.5 — what changed (rename only; schema shape unchanged from v0.4)
 
@@ -65,6 +66,7 @@ Breaking on the wire, mechanical in the code. Every v0.4 contract migrates with 
 | GitHub Pages workflow | `.github/workflows/pages.yml` (runs `build-site`) |
 | Live demo | https://okohedeki.github.io/airlock-config/ (product home) + `/examples/acme-supplier-agent/.well-known/agent-card.json` (the demo Agent Card). **Needs republish + repo rename for v0.5.** |
 | Verification scripts | `scripts/verify-playground.mjs`, `scripts/verify-live.mjs` |
+| Env template | `.env.example` (committed; `.env` gitignored) — documents that the core toolchain needs **no credentials**. |
 
 ### Tests + tooling
 
