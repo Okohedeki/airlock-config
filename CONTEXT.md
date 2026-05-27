@@ -122,9 +122,9 @@ _Avoid_: Contract endpoint, manifest URL
 The output of `airlock-config build`: a directory containing the machine spec (`.well-known/airlock-config.yaml`), the rendered HTML portal, and the LLM-friendly markdown (`llms.txt`). Served by any static host — the publisher's own infra, S3, GitHub Pages, or the sister deploy project.
 _Avoid_: Build output, distribution, package
 
-**Registry (GitHub-list)**:
-The v1 directory: a public GitHub repo (`github.com/Okohedeki/airlock-config-registry`) with a single JSON index. Publishers self-list by PR. Queried by `airlock-config search`. No accounts, no curation, no central authority. A hosted registry with accounts is a Layer 3 product, not v1.
-_Avoid_: Directory, hub, marketplace
+**Registry** — the index concept; hosted as the **airlock-directory** repo:
+The searchable index of self-listed contracts — the "find" layer of the airlock ecosystem, the **airlock-directory** project (`github.com/Okohedeki/airlock-directory`). v1 form: a single JSON file in a public GitHub repo; publishers self-list by PR; queried by `airlock-config search`. No accounts, no curation, no central authority in v1; a hosted directory with accounts is a Layer 3 product. (A deploy-time opt-in flag from `airlock` is planned.)
+_Avoid_: hub, marketplace. Use **"registry"** for the index *concept* and **"airlock-directory"** for the *repo/product* that hosts it — don't use "directory" as a bare synonym for the concept.
 
 ## Layers
 

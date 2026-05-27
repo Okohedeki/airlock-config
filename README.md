@@ -147,13 +147,13 @@ A business publishes their contract, then emits a registry entry another busines
 ```sh
 node dist/cli.js register-entry --contract examples/supplier-agent.airlock-config.yaml \
     --url https://example.com/.well-known/airlock-config.yaml
-# → JSON ready to PR into github.com/Okohedeki/airlock-config-registry
+# → JSON ready to PR into github.com/Okohedeki/airlock-directory
 
 node dist/cli.js search --industry procurement --region eu-west --compliance SOC2_TYPE_2
 # → contracts matching the filter
 ```
 
-The registry is a single JSON file in a public GitHub repo. No accounts. No curation.
+This index is the **airlock-directory** — the searchable "find" layer of the airlock ecosystem (see below). In v1 it's a single JSON file in a public GitHub repo: publishers self-list by PR, no accounts, no curation. (A deploy-time opt-in flag from [`airlock`](https://github.com/Okohedeki/airlock) is planned.) `airlock-config` contracts are the records the directory indexes.
 
 ## Migrating from v0.4
 
