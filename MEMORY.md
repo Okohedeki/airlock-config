@@ -86,9 +86,9 @@ Carried over from the prior v0.5 plan (now repositioned to v0.6 since v0.5 was c
 
 Unchanged from prior roadmap. ~1 day for a viable v1. Bridges sandbox-as-simulator to publisher-deployed business logic.
 
-### 3. Actually stand up `Okohedeki/airlock-config-registry`
+### 3. Actually stand up `Okohedeki/airlock-directory` (the searchable registry)
 
-The registry repo doesn't exist yet. v0.4 shipped `register-entry` + `search`; the repo just needs to be created with one `registry.json` containing the supplier-agent demo entry. ~half a day.
+The registry repo doesn't exist yet. It's the **airlock-directory** project — the ecosystem's searchable "find" layer (aligned 2026-05-26; was provisionally called `airlock-config-registry`). v0.4 shipped `register-entry` + `search`; the repo just needs to be created with one `registry.json` containing the supplier-agent demo entry. ~half a day. (Naming: "registry" = the index concept; "airlock-directory" = the repo.)
 
 ### 4. Infrastructure cleanups (interleave)
 

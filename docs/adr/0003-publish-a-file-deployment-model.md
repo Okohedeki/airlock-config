@@ -14,3 +14,7 @@ This is the literal OpenAPI analogue: a static file at a well-known path, toolin
 - A sister project (see `docs/airlock-deploy-sister-project.md`) handles "scaffold + deploy an agent that serves this contract." Airlock and the deploy project are intentionally separable.
 - The registry is a public GitHub repo with a single JSON file. No accounts, no moderation, no hosted index service. A hosted registry with accounts/curation is Layer 3.
 - Hard to reverse once developers adopt the file-based model. If we ever ship a hosted gateway later, it must compose with the file-based contract (read the same YAML), not replace it.
+
+## Update (2026-05-26)
+
+The "GitHub-list registry" discovery channel above is the **airlock-directory** project — the searchable "find" layer of the airlock ecosystem (`github.com/Okohedeki/airlock-directory`). `airlock-config register-entry` / `search` is its v1 (GitHub-list JSON) mechanism; airlock-directory is that index's home plus a planned deploy-flag on-ramp from `airlock`. The decision here (file-based contracts + an optional self-listed index) is unchanged — only the name is aligned across the airlock repos. Glossary: **"registry"** is the index *concept*; **"airlock-directory"** is the repo/product.
