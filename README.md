@@ -179,6 +179,16 @@ npm test
 npm run build
 ```
 
+## Roadmap / To-Do
+
+**Shipped:** v0.5 schema + validator · sandbox (REST + A2A) · renderer · pre-flight + conformance · `register-entry`/`search` · CLI · 127 tests. Renamed to `airlock-config`. (Engineer's snapshot + next steps: [`MEMORY.md`](./MEMORY.md).)
+
+- [ ] Tag `v0.5.0`; verify Pages serves `okohedeki.github.io/airlock-config/`.
+- [ ] **v0.6** — signed Agent Cards (A2A `signature`, ECDSA P-256, JWKS, `sign-card`/`verify-card`/`keygen`), streaming, fintech flagship example.
+- [ ] Codegen — typed handler stubs (sandbox → publisher business logic).
+- [ ] Stand up **airlock-directory** — the searchable "find" repo; seed `registry.json` with the supplier-agent demo entry (`register-entry`/`search` are its v1 mechanism).
+- [ ] Infra: Node 24 in CI, add `LICENSE` + `CONTRIBUTING.md`, publish to npm.
+
 ## The airlock ecosystem
 
 Airlock Config is the **describe + discover** side of a small family of repos, split by concern. Each is optional and composes with the rest:

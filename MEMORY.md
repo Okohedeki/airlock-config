@@ -2,7 +2,7 @@
 
 State + roadmap snapshot for `Okohedeki/airlock-config`. Read this when picking up after a context gap. The README is the marketing surface; this is the engineer's working memory.
 
-**Last updated:** 2026-05-24 (post v0.5 rename + paseo-style README refresh)
+**Last updated:** 2026-05-26 (ecosystem cross-references + registry→airlock-directory alignment)
 
 ---
 
@@ -14,6 +14,7 @@ State + roadmap snapshot for `Okohedeki/airlock-config`. Read this when picking 
 - **v0.4:** Anchored as a **B2B indexable capability format**. Schema centred on buyer questions: category, region, compliance, auth_model, pricing, data-access permissions, guardrails, authority rules with summary+keywords. Saved as memory `feedback_airlock_is_b2b_not_harness.md` so future sessions don't reach for hooks again.
 - **v0.4.1:** Added **A2A v1.0 interop**. Airlock composes with the Agent2Agent protocol (the dominant open agent-to-agent standard — 150+ orgs, Linux Foundation governed). The bank scenario works end-to-end: a publisher emits a contract + a derived A2A Agent Card; the sandbox speaks both REST and A2A JSON-RPC. See ADR 0007 and `docs/a2a-bridge.md`.
 - **v0.5 (this session):** **Renamed the project to `airlock-config`.** Brand, repo, npm package, CLI, JSON Schema file, `.airlock-config.yaml` extension, `/.well-known/airlock-config.yaml` path, top-level `airlock_config:` YAML key, `X-Airlock-Config-*` HTTP headers, `airlock-config-contract` A2A extension URI — every externally observable surface. README rewritten to a paseo-style centered hero + badges + five-bullet selling points. See ADR 0008 and `docs/migration-v04-to-v05.md`. No backward-compat shim; the validator emits a friendly hint when it sees the legacy `airlock:` key and points at the migration doc.
+- **2026-05-26 (ecosystem):** Added the **airlock ecosystem** cross-reference table to the README (config · airlock · airlock-crypto · airlock-directory). **Aligned the searchable registry naming to `airlock-directory`** (was provisionally `airlock-config-registry`): README, the CONTEXT glossary ("registry" = the index *concept*, "airlock-directory" = the *repo*), and an ADR-0003 amendment. `airlock-config register-entry`/`search` is airlock-directory's v1 (GitHub-list) mechanism.
 
 ### v0.5 — what changed (rename only; schema shape unchanged from v0.4)
 
@@ -74,9 +75,9 @@ Breaking on the wire, mechanical in the code. Every v0.4 contract migrates with 
 
 ## What's next (in depth)
 
-### 0. Phase 6 — GitHub-side rebrand (immediate)
+### 0. Phase 6 — GitHub-side rebrand — DONE (repo live at `Okohedeki/airlock-config`)
 
-`gh repo rename airlock-config --repo Okohedeki/airlock`, update local remote, push, tag `v0.5.0`, verify Pages serves `okohedeki.github.io/airlock-config/`. **Pause to confirm with the user before running any of these.**
+The repo is renamed and pushed; v0.5 surfaces are live. Remaining: tag `v0.5.0` and verify Pages serves `okohedeki.github.io/airlock-config/`.
 
 ### 1. v0.6 — signed Agent Cards + streaming + bank example
 
