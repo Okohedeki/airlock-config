@@ -179,6 +179,17 @@ npm test
 npm run build
 ```
 
+## The airlock ecosystem
+
+Airlock Config is the **describe + discover** side of a small family of repos, split by concern. Each is optional and composes with the rest:
+
+| Repo | What it does |
+| --- | --- |
+| **airlock-config** (this repo) | Declare an agent's skills, pricing, region, and compliance → a static `/.well-known` bundle others discover. The **describe + discover** side. |
+| [**airlock**](https://github.com/Okohedeki/airlock) | Run an agent behind a paid, OpenAI-compatible x402 URL — self-hosted or airlock-hosted. It serves this contract's bundle automatically when present. The **host + sell** side. |
+| [**airlock-crypto**](https://github.com/Okohedeki/airlock-crypto) | Self-custody agent wallets that **buy and sell** from each other over x402. The **pay** side. |
+| **airlock-directory** *(planned)* | A searchable registry agents opt into to be found by capability/price/region — indexes these contracts. The **find** side. |
+
 ---
 
 <p align="center">
